@@ -146,5 +146,5 @@ def ctr_bootstrap(sample_1, sample_2, bootstrap_conf_level=0.95, boot_it=10000, 
         boot_data, quants, p_value = parallel_ctr_bootstrap(sample_1, sample_2, bootstrap_conf_level, boot_it, boot_len)
 
     if plot:
-        bootstrap_plot(boot_data, quants, statistic)
+        bootstrap_plot(boot_data, quants, statistic='CTR Difference')
     return boot_data, quants, p_value
