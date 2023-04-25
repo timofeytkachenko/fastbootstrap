@@ -19,42 +19,6 @@ def estimate_pvalue(boot_data):
     return min(p_1, p_2) * 2
 
 
-def naive_bootstrap(sample_1, sample_2, bootstrap_conf_level=0.95, boot_it=10000, boot_len=None, statistic=np.mean):
-    if not boot_len:
-        boot_len = np.max([sample_1.shape[0], sample_2.shape[0]])
-
-    boot_data = np.zeros(shape=boot_it)
-    for i in tqdm(range(boot_it)):
-        samples_1 = np.random.choice(sample_1, boot_len, replace=True)
-        samples_2 = np.random.choice(sample_2, boot_len, replace=True)
-        boot_data[i] = statistic(samples_1 - samples_2)
-
-    quants = estimate_quants(boot_data, bootstrap_conf_level)
-    p_value = estimate_pvalue(boot_data)
-
-    return boot_data, quants, p_value
-
-
-def parallel_bootstrap(sample_1, sample_2, bootstrap_conf_level=0.95, boot_it=10000, boot_len=None, statistic=np.mean):
-    def sample():
-        import numpy as np
-        samples_1 = np.random.choice(sample_1, boot_len, replace=True)
-        samples_2 = np.random.choice(sample_2, boot_len, replace=True)
-        return statistic(samples_1 - samples_2)
-
-    if not boot_len:
-        boot_len = np.max([sample_1.shape[0], sample_2.shape[0]])
-
-    pool = Pool(cpu_count())
-    boot_data = np.array(pool.starmap(sample, [() for i in range(boot_it)]))
-    pool.close()
-
-    quants = estimate_quants(boot_data, bootstrap_conf_level)
-    p_value = estimate_pvalue(boot_data)
-
-    return boot_data, quants, p_value
-
-
 def estimate_bin_params(sample):
     q1 = np.quantile(sample, 0.25)
     q3 = np.quantile(sample, 0.75)
@@ -86,37 +50,35 @@ def bootstrap_plot(boot_data, quants, statistic=None):
 
 def bootstrap(sample_1, sample_2, bootstrap_conf_level=0.95, boot_it=10000, boot_len=None, statistic=np.mean,
               plot=True):
+    def sample():
+        import numpy as np
+        samples_1 = np.random.choice(sample_1, boot_len, replace=True)
+        samples_2 = np.random.choice(sample_2, boot_len, replace=True)
+        return statistic(samples_1 - samples_2)
+
+    if not boot_len:
+        boot_len = np.max([sample_1.shape[0], sample_2.shape[0]])
+
     if np.max([sample_1.shape[0], sample_2.shape[0]]) <= 10000:
-        boot_data, quants, p_value = naive_bootstrap(sample_1, sample_2, bootstrap_conf_level, boot_it, boot_len,
-                                                     statistic)
+        boot_data = np.zeros(shape=boot_it)
+        for i in tqdm(range(boot_it)):
+            samples_1 = np.random.choice(sample_1, boot_len, replace=True)
+            samples_2 = np.random.choice(sample_2, boot_len, replace=True)
+            boot_data[i] = statistic(samples_1 - samples_2)
     else:
-        boot_data, quants, p_value = parallel_bootstrap(sample_1, sample_2, bootstrap_conf_level, boot_it, boot_len,
-                                                        statistic)
+        pool = Pool(cpu_count())
+        boot_data = np.array(pool.starmap(sample, [() for i in range(boot_it)]))
+        pool.close()
+
+    quants = estimate_quants(boot_data, bootstrap_conf_level)
+    p_value = estimate_pvalue(boot_data)
 
     if plot:
         bootstrap_plot(boot_data, quants, statistic)
     return boot_data, quants, p_value
 
 
-def naive_ctr_bootstrap(control, treatment, bootstrap_conf_level=0.95, boot_it=10000, boot_len=None):
-    if not boot_len:
-        boot_len = np.max([control.shape[0], treatment.shape[0]])
-
-    boot_data = np.zeros(shape=boot_it)
-    for i in tqdm(range(boot_it)):
-        control_sample = control.sample(boot_len, replace=True)
-        treatment_sample = treatment.sample(boot_len, replace=True)
-        ctr_control_sample = control_sample.clicks.sum() / control_sample.views.sum()
-        ctr_treatment_sample = treatment_sample.clicks.sum() / treatment_sample.views.sum()
-        boot_data[i] = ctr_treatment_sample - ctr_control_sample
-
-    quants = estimate_quants(boot_data, bootstrap_conf_level)
-    p_value = estimate_pvalue(boot_data)
-
-    return boot_data, quants, p_value
-
-
-def parallel_ctr_bootstrap(control, treatment, bootstrap_conf_level=0.95, boot_it=10000, boot_len=None):
+def ctr_bootstrap(control, treatment, bootstrap_conf_level=0.95, boot_it=10000, boot_len=None, plot=True):
     def sample():
         import numpy as np
         control_sample = control.sample(boot_len, replace=True)
@@ -128,22 +90,21 @@ def parallel_ctr_bootstrap(control, treatment, bootstrap_conf_level=0.95, boot_i
     if not boot_len:
         boot_len = np.max([control.shape[0], treatment.shape[0]])
 
-    pool = Pool(cpu_count())
-    boot_data = np.array(pool.starmap(sample, [() for i in range(boot_it)]))
-    pool.close()
+    if np.max([control.shape[0], treatment.shape[0]]) <= 10000:
+        boot_data = np.zeros(shape=boot_it)
+        for i in tqdm(range(boot_it)):
+            control_sample = control.sample(boot_len, replace=True)
+            treatment_sample = treatment.sample(boot_len, replace=True)
+            ctr_control_sample = control_sample.clicks.sum() / control_sample.views.sum()
+            ctr_treatment_sample = treatment_sample.clicks.sum() / treatment_sample.views.sum()
+            boot_data[i] = ctr_treatment_sample - ctr_control_sample
+    else:
+        pool = Pool(cpu_count())
+        boot_data = np.array(pool.starmap(sample, [() for i in range(boot_it)]))
+        pool.close()
 
     quants = estimate_quants(boot_data, bootstrap_conf_level)
     p_value = estimate_pvalue(boot_data)
-
-    return boot_data, quants, p_value
-
-
-def ctr_bootstrap(sample_1, sample_2, bootstrap_conf_level=0.95, boot_it=10000, boot_len=None, statistic=np.mean,
-                  plot=True):
-    if np.max([sample_1.shape[0], sample_2.shape[0]]) <= 10000:
-        boot_data, quants, p_value = naive_ctr_bootstrap(sample_1, sample_2, bootstrap_conf_level, boot_it, boot_len)
-    else:
-        boot_data, quants, p_value = parallel_ctr_bootstrap(sample_1, sample_2, bootstrap_conf_level, boot_it, boot_len)
 
     if plot:
         bootstrap_plot(boot_data, quants, statistic='CTR Difference')
