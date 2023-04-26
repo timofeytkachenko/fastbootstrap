@@ -5,6 +5,7 @@ from scipy.stats import norm, binom
 from numpy.random import normal, binomial
 from multiprocess import Pool, cpu_count
 from tqdm.auto import tqdm
+from compare_functions import difference_of_mean
 
 
 def estimate_bootstrap_confidence_interval(bootstrap_difference_distribution, bootstrap_conf_level=0.95):
@@ -33,7 +34,7 @@ def bootstrap_plot(bootstrap_difference_distribution, bootstrap_confidence_inter
     if isinstance(statistic, str):
         xlabel = statistic
     elif hasattr(statistic, '__call__'):
-        xlabel = statistic.__name__[0].upper() + statistic.__name__[1:] + '(Difference)'
+        xlabel = ' '.join([i.capitalize() for i in statistic.__name__.split('_')])
     else:
         xlabel = 'Stat'
 
@@ -52,12 +53,12 @@ def bootstrap_plot(bootstrap_difference_distribution, bootstrap_confidence_inter
 
 
 def bootstrap(sample_1, sample_2, bootstrap_conf_level=0.95, number_of_bootstrap_samples=10000, sample_size=None,
-              statistic=np.mean, plot=True):
+              statistic=difference_of_mean, plot=True):
     def sample():
         import numpy as np
         samples_1 = np.random.choice(sample_1, sample_size, replace=True)
         samples_2 = np.random.choice(sample_2, sample_size, replace=True)
-        return statistic(samples_2 - samples_1)
+        return statistic(samples_1, samples_2)
 
     if not sample_size:
         sample_size = np.max([sample_1.shape[0], sample_2.shape[0]])
@@ -67,7 +68,7 @@ def bootstrap(sample_1, sample_2, bootstrap_conf_level=0.95, number_of_bootstrap
         for i in tqdm(range(number_of_bootstrap_samples)):
             samples_1 = np.random.choice(sample_1, sample_size, replace=True)
             samples_2 = np.random.choice(sample_2, sample_size, replace=True)
-            bootstrap_difference_distribution[i] = statistic(samples_2 - samples_1)
+            bootstrap_difference_distribution[i] = statistic(samples_1, samples_2)
     else:
         pool = Pool(cpu_count())
         bootstrap_difference_distribution = np.array(
@@ -136,14 +137,16 @@ def spotify_one_sample_bootstrap(sample, sample_size=None, quantile_of_interest=
 
 def spotify_two_sample_bootstrap(sample_1, sample_2, number_of_bootstrap_samples=10000,
                                  sample_size=None, quantile_of_interest=0.5, bootstrap_conf_level=0.95, plot=True):
-    if not sample_size:
-        sample_size = np.min([sample_1.shape[0], sample_2.shape[0]])
+    if sample_size:
+        sample_size_1, sample_size_2 = [sample_size] * 2
+    else:
+        sample_size_1, sample_size_2 = sample_1.shape[0], sample_2.shape[0]
 
     sorted_sample_1 = np.sort(sample_1)
     sorted_sample_2 = np.sort(sample_2)
-    bootstrap_difference_distribution = sorted_sample_2[binomial(sample_size + 1, quantile_of_interest,
+    bootstrap_difference_distribution = sorted_sample_2[binomial(sample_size_2 + 1, quantile_of_interest,
                                                                  number_of_bootstrap_samples)] - sorted_sample_1[
-                                            binomial(sample_size + 1, quantile_of_interest,
+                                            binomial(sample_size_1 + 1, quantile_of_interest,
                                                      number_of_bootstrap_samples)]
 
     bootstrap_difference_mean = np.quantile(sorted_sample_2, quantile_of_interest) - np.quantile(sorted_sample_1,
@@ -154,6 +157,6 @@ def spotify_two_sample_bootstrap(sample_1, sample_2, number_of_bootstrap_samples
                                                                            bootstrap_conf_level)
     p_value = estimate_p_value(bootstrap_difference_mean, bootstrap_difference_std)
     if plot:
-        statistic = f'q-{quantile_of_interest}_Difference'
+        statistic = f'q-{quantile_of_interest} Difference'
         bootstrap_plot(bootstrap_difference_distribution, bootstrap_confidence_interval, statistic=statistic)
     return p_value, bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_difference_distribution
