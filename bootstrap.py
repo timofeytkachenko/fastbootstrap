@@ -158,14 +158,15 @@ def spotify_two_sample_bootstrap(control, treatment, number_of_bootstrap_samples
                        statistic=statistic)
     return p_value, bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_difference_distribution
 
-def poisson_bootstrap(control, treatment, n_bootstrap=10000):
-    poisson_bootstraps = scipy.stats.poisson(1).rvs((n_bootstrap, control.shape[0])).astype(np.int64)
 
-    values_0 = np.matmul(control, poisson_bootstraps.T)
-    values_1 = np.matmul(treatment, poisson_bootstraps.T)
+def poisson_bootstrap(control, treatment, number_of_bootstrap_samples=10000):
+    poisson_bootstraps = scipy.stats.poisson(1).rvs((number_of_bootstrap_samples, control.shape[0])).astype(np.int64)
 
-    deltas = values_1 - values_0
+    values_1 = np.matmul(control, poisson_bootstraps.T)
+    values_2 = np.matmul(treatment, poisson_bootstraps.T)
 
-    positions = np.sum(deltas < 0, axis=0)
+    difference = values_2 - values_1
 
-    return 2 * np.minimum(positions, n_bootstrap - positions) / n_bootstrap
+    positions = np.sum(difference < 0, axis=0)
+
+    return 2 * np.minimum(positions, number_of_bootstrap_samples - positions) / number_of_bootstrap_samples
