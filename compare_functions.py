@@ -45,6 +45,17 @@ def difference_of_median(sample_1, sample_2):
     return np.median(sample_2) - np.median(sample_1)
 
 
+def mean_percent_change(sample_1, sample_2):
+    """Calculates percent change.
+    Args:
+        sample_1: numpy array of control statistics
+        sample_2: numpy array of test statistics
+    Returns:
+        (sample_2 - sample_1) / sample_2 * 100
+    """
+    return (np.mean(sample_2) - np.mean(sample_1)) * 100.0 / abs(np.mean(sample_2))
+
+
 def difference(sample_1, sample_2):
     """Calculates difference change. A good default.
     Args:
