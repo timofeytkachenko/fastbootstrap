@@ -16,10 +16,9 @@ def estimate_bootstrap_confidence_interval(bootstrap_difference_distribution, bo
     return bootstrap_confidence_interval
 
 
-def estimate_p_value(bootstrap_difference_mean, bootstrap_difference_std):
-    p_1 = norm.cdf(x=0, loc=bootstrap_difference_mean, scale=bootstrap_difference_std)
-    p_2 = norm.cdf(x=0, loc=-bootstrap_difference_mean, scale=bootstrap_difference_std)
-    return min(p_1, p_2) * 2
+def estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples):
+    positions = np.sum(bootstrap_difference_distribution < 0, axis=0)
+    return 2 * np.minimum(positions, number_of_bootstrap_samples - positions) / number_of_bootstrap_samples
 
 
 def estimate_bin_params(sample):
@@ -77,8 +76,7 @@ def bootstrap(control, treatment, bootstrap_conf_level=0.95, number_of_bootstrap
     bootstrap_confidence_interval = estimate_bootstrap_confidence_interval(bootstrap_difference_distribution,
                                                                            bootstrap_conf_level)
     bootstrap_difference_mean = bootstrap_difference_distribution.mean()
-    bootstrap_difference_std = bootstrap_difference_distribution.std()
-    p_value = estimate_p_value(bootstrap_difference_mean, bootstrap_difference_std)
+    p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
 
     if plot:
         bootstrap_plot(bootstrap_difference_distribution, bootstrap_difference_mean, bootstrap_confidence_interval,
@@ -111,8 +109,7 @@ def ctr_bootstrap(control, treatment, bootstrap_conf_level=0.95, number_of_boots
     bootstrap_confidence_interval = estimate_bootstrap_confidence_interval(bootstrap_difference_distribution,
                                                                            bootstrap_conf_level)
     bootstrap_difference_mean = bootstrap_difference_distribution.mean()
-    bootstrap_difference_std = bootstrap_difference_distribution.std()
-    p_value = estimate_p_value(bootstrap_difference_mean, bootstrap_difference_std)
+    p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
 
     if plot:
         bootstrap_plot(bootstrap_difference_distribution, bootstrap_difference_mean, bootstrap_confidence_interval,
@@ -131,7 +128,7 @@ def spotify_one_sample_bootstrap(sample, sample_size=None, quantile_of_interest=
     return np.quantile(sample_sorted, quantile_of_interest), bootstrap_confidence_interval
 
 
-def spotify_two_sample_bootstrap(control, treatment, number_of_bootstrap_samples=100000,
+def spotify_two_sample_bootstrap(control, treatment, number_of_bootstrap_samples=10000,
                                  sample_size=None, quantile_of_interest=0.5, bootstrap_conf_level=0.95, plot=True):
     if sample_size:
         control_sample_size, treatment_sample_size = [sample_size] * 2
@@ -147,11 +144,10 @@ def spotify_two_sample_bootstrap(control, treatment, number_of_bootstrap_samples
 
     bootstrap_difference_mean = np.quantile(sorted_treatment, quantile_of_interest) - np.quantile(sorted_control,
                                                                                                   quantile_of_interest)
-    bootstrap_difference_std = bootstrap_difference_distribution.std()
 
     bootstrap_confidence_interval = estimate_bootstrap_confidence_interval(bootstrap_difference_distribution,
                                                                            bootstrap_conf_level)
-    p_value = estimate_p_value(bootstrap_difference_mean, bootstrap_difference_std)
+    p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
     if plot:
         statistic = f'q-{quantile_of_interest} Difference'
         bootstrap_plot(bootstrap_difference_distribution, bootstrap_difference_mean, bootstrap_confidence_interval,
