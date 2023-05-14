@@ -1,6 +1,7 @@
 import scipy
 import numpy as np
 import pandas as pd
+import plotly.express as px
 import matplotlib.pyplot as plt
 from scipy.stats import norm, binom
 from numpy.random import normal, binomial
@@ -9,6 +10,8 @@ from compare_functions import difference_of_mean, difference
 from scipy.stats import percentileofscore
 from tqdm.auto import tqdm
 from typing import Tuple, Union, Callable
+
+colors = {'False': 'red', 'True': 'black'}
 
 
 def estimate_quantile_of_mean(sample: np.ndarray, batch_size_percent: int = 5, bootstrap_conf_level: float = 0.95,
@@ -336,3 +339,44 @@ def poisson_bootstrap(control: np.ndarray, treatment: np.ndarray, number_of_boot
     difference = values_2 - values_1
     p_value = estimate_p_value(difference, number_of_bootstrap_samples)
     return p_value
+
+
+def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: int = 20, q1: float = 0.025,
+                            q2: float = 0.975) -> None:
+    """
+
+    Args:
+        control (ndarray): 1D array containing control sample
+        treatment (ndarray): 1D array containing treatment sample
+        n_step (int): Number of quantiles to compare. Defaults to 20
+        q1 (float): Lower quantile. Defaults to 0.025
+        q2 (float): Upper quantile. Defaults to 0.975
+
+    """
+    quantiles_to_compare = np.linspace(q1, q2, n_step)
+    statistics = list()
+    for quantile in quantiles_to_compare:
+        p_value, bootstrap_mean, bootstrap_confidence_interval, _ = spotify_two_sample_bootstrap(control, treatment,
+                                                                                                 quantile_of_interest=quantile,
+                                                                                                 plot=False)
+        statistics.append([p_value, bootstrap_mean, bootstrap_confidence_interval[0], bootstrap_confidence_interval[1]])
+    statistics = np.array(statistics)
+
+    df = pd.DataFrame(
+        {'quantile': quantiles_to_compare,
+         'p_value': statistics[:, 0],
+         'difference': statistics[:, 1],
+         'ci_lower': statistics[:, 2],
+         'ci_upper': statistics[:, 3]}
+    )
+    df['significance'] = (df['p_value'] < 0.05).astype(str)
+
+    fig = px.bar(df, x="quantile", y="difference", color='significance', color_discrete_map=colors).update_traces(
+        error_y={
+            "type": "data",
+            "symmetric": False,
+            "array": df["ci_upper"] - df["difference"],
+            "arrayminus": df["difference"] - df["ci_lower"]
+        }
+    )
+    fig.show()
