@@ -368,13 +368,13 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
         {'quantile': quantiles_to_compare,
          'p_value': statistics[:, 0],
          'difference': statistics[:, 1],
-         'ci_lower': statistics[:, 2],
-         'ci_upper': statistics[:, 3]}
+         'lower_bound': statistics[:, 2],
+         'upper_bound': statistics[:, 3]}
     )
     df['significance'] = (df['p_value'] < 0.05).astype(str)
 
-    df["ci_upper"] = df["ci_upper"] - df["difference"]
-    df["ci_lower"] = df["difference"] - df["ci_lower"]
+    df["ci_upper"] = df["upper_bound"] - df["difference"]
+    df["ci_lower"] = df["difference"] - df["lower_bound"]
 
     df.loc[df[df["significance"] == 'True'].index, "ci_upper"] = 0
     df.loc[df[df["significance"] == 'True'].index, "ci_lower"] = 0
@@ -382,7 +382,9 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
     fig = go.Figure(data=[go.Bar(
         x=df["quantile"],
         y=df["difference"],
-        marker_color=df['significance'].map(colors)
+        marker_color=df['significance'].map(colors),
+        customdata=df
+
     )])
 
     fig.update_traces(
@@ -392,6 +394,17 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
             "array": df["ci_upper"],
             "arrayminus": df["ci_lower"]
         }
+    )
+
+    fig.update_traces(
+        name='Quantile Information',
+        hovertemplate="<br>".join([
+            "p_value: %{customdata[1]}",
+            "Significance: %{customdata[5]}",
+            "Difference: %{customdata[1]}",
+            "Lower Bound: %{customdata[3]}",
+            "Upper Bound: %{customdata[4]}"
+        ])
     )
 
     fig.update_layout(title_text='Quantile Bootstrap Plot')
