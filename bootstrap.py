@@ -376,9 +376,6 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
     df["ci_upper"] = df["upper_bound"] - df["difference"]
     df["ci_lower"] = df["difference"] - df["lower_bound"]
 
-    df.loc[df[df["significance"] == 'True'].index, "ci_upper"] = 0
-    df.loc[df[df["significance"] == 'True'].index, "ci_lower"] = 0
-
     fig = go.Figure(data=[go.Bar(
         x=df["quantile"],
         y=df["difference"],
@@ -401,7 +398,7 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
         hovertemplate="<br>".join([
             "p_value: %{customdata[1]}",
             "Significance: %{customdata[5]}",
-            "Difference: %{customdata[1]}",
+            "Difference: %{customdata[2]}",
             "Lower Bound: %{customdata[3]}",
             "Upper Bound: %{customdata[4]}"
         ])
