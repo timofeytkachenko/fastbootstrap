@@ -1,7 +1,7 @@
 import scipy
 import numpy as np
 import pandas as pd
-import plotly.express as px
+import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 from scipy.stats import norm, binom
 from numpy.random import normal, binomial
@@ -373,12 +373,26 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
     )
     df['significance'] = (df['p_value'] < 0.05).astype(str)
 
-    fig = px.bar(df, x="quantile", y="difference", color='significance', color_discrete_map=colors).update_traces(
+    df["ci_upper"] = df["ci_upper"] - df["difference"]
+    df["ci_lower"] = df["difference"] - df["ci_lower"]
+
+    df.loc[df[df["significance"] == 'True'].index, "ci_upper"] = 0
+    df.loc[df[df["significance"] == 'True'].index, "ci_lower"] = 0
+
+    fig = go.Figure(data=[go.Bar(
+        x=df["quantile"],
+        y=df["difference"],
+        marker_color=df['significance'].map(colors)
+    )])
+
+    fig.update_traces(
         error_y={
             "type": "data",
             "symmetric": False,
-            "array": np.abs(df["ci_upper"] - df["difference"]),
-            "arrayminus": np.abs(df["difference"] - df["ci_lower"])
+            "array": df["ci_upper"],
+            "arrayminus": df["ci_lower"]
         }
     )
+
+    fig.update_layout(title_text='Quantile Bootstrap Plot')
     fig.show()
