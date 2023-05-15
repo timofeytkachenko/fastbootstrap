@@ -13,13 +13,13 @@ def mean_of_difference(control, treatment):
 
 
 def percent_difference_of_mean(control, treatment):
-    """Calculates ratio between control and treatment. Useful when your statistics
+    """Calculates percent difference of median between control and treatment. Useful when your statistics
         might be close to zero. Provides a symmetric result.
     Args:
         control: numpy array of control statistics
         treatment: numpy array of treatment statistics
     Returns:
-        (treatment - control) / ((control + treatment) / 2.0) * 100.0
+        (np.mean(treatment) - np.mean(control)) / ((np.mean(control) + np.mean(treatment)) / 2.0) * 100.0
     """
     return (np.mean(treatment) - np.mean(control)) / ((np.mean(control) + np.mean(treatment)) / 2.0) * 100.0
 
@@ -57,6 +57,18 @@ def difference_of_median(control, treatment):
     return np.median(treatment) - np.median(control)
 
 
+def percent_difference_of_median(control, treatment):
+    """Calculates percent difference of median between control and treatment. Useful when your statistics
+        might be close to zero. Provides a symmetric result.
+    Args:
+        control: numpy array of control statistics
+        treatment: numpy array of treatment statistics
+    Returns:
+        (treatment - control) / ((control + treatment) / 2.0) * 100.0
+    """
+    return (np.mean(treatment) - np.mean(control)) / ((np.mean(control) + np.mean(treatment)) / 2.0) * 100.0
+
+
 def mean_percent_change(control, treatment):
     """Calculates percent change.
     Args:
@@ -88,6 +100,28 @@ def percent_change(control, treatment):
         (treatment - control) / treatment * 100
     """
     return (treatment - control) * 100.0 / abs(treatment)
+
+
+def percent_change_of_median(control, treatment):
+    """Calculates percent change of median.
+    Args:
+        control: numpy array of control statistics
+        treatment: numpy array of treatment statistics
+    Returns:
+        (np.median(treatment) - np.median(control)) * 100.0 / abs(np.median(treatment))
+    """
+    return (np.median(treatment) - np.median(control)) * 100.0 / abs(np.median(treatment))
+
+
+def percent_change_of_mean(control, treatment):
+    """Calculates percent change of mean.
+    Args:
+        control: numpy array of control statistics
+        treatment: numpy array of treatment statistics
+    Returns:
+        (np.mean(treatment) - np.mean(control)) * 100.0 / abs(np.mean(treatment))
+    """
+    return (np.mean(treatment) - np.mean(control)) * 100.0 / abs(np.mean(treatment))
 
 
 def ratio(control, treatment):

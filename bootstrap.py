@@ -377,8 +377,8 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
         error_y={
             "type": "data",
             "symmetric": False,
-            "array": df["ci_upper"] - df["difference"],
-            "arrayminus": df["difference"] - df["ci_lower"]
+            "array": np.abs(df["ci_upper"] - df["difference"]),
+            "arrayminus": np.abs(df["difference"] - df["ci_lower"])
         }
     )
     fig.show()
