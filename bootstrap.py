@@ -342,7 +342,7 @@ def poisson_bootstrap(control: np.ndarray, treatment: np.ndarray, number_of_boot
 
 
 def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: int = 20, q1: float = 0.025,
-                            q2: float = 0.975) -> None:
+                            q2: float = 0.975, statistic: Callable = difference) -> None:
     """
 
     Args:
@@ -351,6 +351,7 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
         n_step (int): Number of quantiles to compare. Defaults to 20
         q1 (float): Lower quantile. Defaults to 0.025
         q2 (float): Upper quantile. Defaults to 0.975
+        statistic (Callable): Statistic function. Defaults to difference.
 
     """
     quantiles_to_compare = np.linspace(q1, q2, n_step)
@@ -358,6 +359,7 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
     for quantile in quantiles_to_compare:
         p_value, bootstrap_mean, bootstrap_confidence_interval, _ = spotify_two_sample_bootstrap(control, treatment,
                                                                                                  quantile_of_interest=quantile,
+                                                                                                 statistic=statistic,
                                                                                                  plot=False)
         statistics.append([p_value, bootstrap_mean, bootstrap_confidence_interval[0], bootstrap_confidence_interval[1]])
     statistics = np.array(statistics)
