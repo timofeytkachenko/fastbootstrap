@@ -341,7 +341,7 @@ def poisson_bootstrap(control: np.ndarray, treatment: np.ndarray, number_of_boot
     return p_value
 
 
-def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: int = 20, q1: float = 0,
+def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: int = 20, q1: float = 0.01,
                             q2: float = 0.99, plot_type: str = 'line', statistic: Callable = difference) -> None:
     """
 
