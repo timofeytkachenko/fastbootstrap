@@ -398,7 +398,7 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
         fig.update_traces(
             name='Quantile Information',
             hovertemplate="<br>".join([
-                "Quantile: %customdata[0]",
+                "Quantile: %{customdata[0]}",
                 "p_value: %{customdata[1]}",
                 "Significance: %{customdata[5]}",
                 "Difference: %{customdata[2]}",
