@@ -447,4 +447,6 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
             title='Quantile Bootstrap Line Plot',
             hovermode="x"
         )
-        fig.show()
+
+    fig.write_image("quantile_bootstrap_plot.png", engine='orca')
+    fig.show()
