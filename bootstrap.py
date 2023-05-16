@@ -11,6 +11,8 @@ from scipy.stats import percentileofscore
 from tqdm.auto import tqdm
 from typing import Tuple, Union, Callable
 
+plt.style.use('ggplot')
+
 colors = {'False': 'red', 'True': 'black'}
 
 
