@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
 from scipy.stats import norm, binom
 from numpy.random import normal, binomial
 from multiprocess import Pool, cpu_count
@@ -450,3 +451,66 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
 
     fig.write_image("quantile_bootstrap_plot.png", engine='orca')
     fig.show()
+
+
+def sanity_check(control: np.ndarray, treatment: np.ndarray, number_of_experiments: int = 2000,
+                 bootstrap: Callable = bootstrap, ab_simulation: bool = True) -> None:
+    """Sanity check for A/A and A/B testing
+
+    Args:
+        control (ndarray): 1D array containing control sample
+        treatment (ndarray): 1D array containing treatment sample
+        number_of_experiments (int): Number of experiments to run. Defaults to 2000
+        bootstrap (Callable): Bootstrap function. Defaults to spotify_two_sample_bootstrap
+        ab_simulation (bool): Whether to run A/B simulation. Defaults to True
+    """
+
+    aa_p_values, ab_p_values = np.zeros(shape=number_of_experiments), np.zeros(shape=number_of_experiments)
+    control_size = control.shape[0]
+    treatment_size = treatment.shape[0]
+
+    for i in range(number_of_experiments):
+        p_value_aa, _, _, _ = bootstrap(np.random.choice(control, control_size, replace=True),
+                                        np.random.choice(control, control_size, replace=True), plot=False)
+        aa_p_values[i] = p_value_aa
+
+        if ab_simulation:
+            p_value_ab, _, _, _ = bootstrap(np.random.choice(control, control_size, replace=True),
+                                            np.random.choice(treatment, treatment_size, replace=True), plot=False)
+            ab_p_values[i] = p_value_ab
+
+    cdf_h0_title = 'Simulated p-value CDFs under H0 (FPR)'
+    cdf_h1_title = 'Simulated p-value CDFs under H1 (Sensitivity)'
+
+    if ab_simulation:
+        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
+        ax[0].set_title(cdf_h0_title)
+        ax[1].set_title(cdf_h1_title)
+        ax[1].axvline(0.05, color='black', linestyle='dashed', linewidth=2, label='alpha=0.05')
+        plot_cdf(aa_p_values, label=cdf_h0_title, ax=ax[0])
+        plot_cdf(ab_p_values, label=cdf_h1_title, ax=ax[1])
+    else:
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+        ax.set_title(cdf_h0_title)
+        plot_cdf(aa_p_values, label=cdf_h0_title, ax=ax)
+
+
+def plot_cdf(p_values: np.ndarray, label: str, ax: Axes, linewidth: float = 3) -> None:
+    """CFF plot function
+
+    Args:
+        p_values (ndarray): 1D array containing p-values
+        label (str): Label for the plot
+        ax (Axes): Axes object to plot on
+        linewidth (float): Linewidth for the plot. Defaults to 3
+    """
+
+    sorted_p_values = np.sort(p_values)
+    position = scipy.stats.rankdata(sorted_p_values, method='ordinal')
+    cdf = position / p_values.shape[0]
+
+    sorted_data = np.hstack((sorted_p_values, 1))
+    cdf = np.hstack((cdf, 1))
+
+    ax.plot(sorted_data, cdf, label=label, linestyle='solid', linewidth=linewidth)
