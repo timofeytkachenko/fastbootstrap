@@ -475,7 +475,8 @@ def sanity_check(control: np.ndarray, treatment: np.ndarray, number_of_experimen
         ab_simulation (bool): Whether to run A/B simulation. Defaults to True
     """
 
-    aa_p_values, ab_p_values = np.zeros(shape=number_of_experiments), np.zeros(shape=number_of_experiments)
+    aa_p_values = np.zeros(shape=number_of_experiments)
+    ab_p_values = np.zeros(shape=number_of_experiments)
     control_size = control.shape[0]
     treatment_size = treatment.shape[0]
 
