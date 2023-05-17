@@ -131,7 +131,7 @@ def bootstrap_plot(bootstrap_difference_distribution: np.ndarray, bootstrap_conf
 def bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: float = 0.95,
               number_of_bootstrap_samples: int = 10000,
               sample_size: int = None,
-              statistic: Callable = difference_of_mean, plot: bool = True) -> Tuple[
+              statistic: Callable = difference_of_mean, plot: bool = True, progress_bar: bool = False) -> Tuple[
     float, float, np.ndarray, np.ndarray]:
     """Two-sample bootstrap
 
@@ -148,6 +148,7 @@ def bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: 
         statistic (Callable): Statistic function. Defaults to difference_of_mean.
             Choose statistic function from compare_functions.py
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
+        progress_bar (bool): If True, then progress bar will be shown. Defaults to False
     Returns:
         Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
             bootstrap confidence interval, bootstrap difference distribution
@@ -165,7 +166,10 @@ def bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: 
         control_sample_size, treatment_sample_size = control.shape[0], treatment.shape[0]
 
     if np.max([control.shape[0], treatment.shape[0]]) <= 10000:
-        bootstrap_difference_distribution = np.array([sample() for i in tqdm(range(number_of_bootstrap_samples))])
+        if progress_bar:
+            bootstrap_difference_distribution = np.array([sample() for i in tqdm(range(number_of_bootstrap_samples))])
+        else:
+            bootstrap_difference_distribution = np.array([sample() for i in range(number_of_bootstrap_samples)])
     else:
         pool = Pool(cpu_count())
         bootstrap_difference_distribution = np.array(
@@ -182,8 +186,10 @@ def bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: 
     return p_value, bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_difference_distribution
 
 
-def ctr_bootstrap(control, treatment, bootstrap_conf_level=0.95, number_of_bootstrap_samples=10000, sample_size=None,
-                  plot=True):
+def ctr_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: float = 0.95,
+                  number_of_bootstrap_samples: int = 10000,
+                  sample_size: int = None, plot: bool = True, progress_bar: bool = False) -> Tuple[
+    float, float, np.ndarray, np.ndarray]:
     """Two-sample CTR-Bootstrap
 
         If max([control.shape[0], treatment.shape[0]) > 10000, then multiprocessing will be used.
@@ -203,6 +209,7 @@ def ctr_bootstrap(control, treatment, bootstrap_conf_level=0.95, number_of_boots
             statistic (Callable): Statistic function. Defaults to difference_of_mean.
                 Choose statistic function from compare_functions.py
             plot (bool): If True, then bootstrap plot will be shown. Defaults to True
+            progress_bar (bool): If True, then progress bar will be shown. Defaults to False
         Returns:
             Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
                 bootstrap confidence interval, bootstrap difference distribution
@@ -222,7 +229,10 @@ def ctr_bootstrap(control, treatment, bootstrap_conf_level=0.95, number_of_boots
         control_sample_size, treatment_sample_size = control.shape[0], treatment.shape[0]
 
     if np.max([control.shape[0], treatment.shape[0]]) <= 10000:
-        bootstrap_difference_distribution = np.array([sample() for i in tqdm(range(number_of_bootstrap_samples))])
+        if progress_bar:
+            bootstrap_difference_distribution = np.array([sample() for i in tqdm(range(number_of_bootstrap_samples))])
+        else:
+            bootstrap_difference_distribution = np.array([sample() for i in range(number_of_bootstrap_samples)])
     else:
         pool = Pool(cpu_count())
         bootstrap_difference_distribution = np.array(
