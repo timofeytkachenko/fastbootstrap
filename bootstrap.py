@@ -498,13 +498,21 @@ def sanity_check(control: np.ndarray, treatment: np.ndarray, number_of_experimen
     cdf_h0_title = 'Simulated p-value CDFs under H0 (FPR)'
     cdf_h1_title = 'Simulated p-value CDFs under H1 (Sensitivity)'
 
+    tests_power = np.mean(ab_p_values < 0.05)
+
     if ab_simulation:
-        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
-        ax[0].set_title(cdf_h0_title)
-        ax[1].set_title(cdf_h1_title)
-        ax[1].axvline(0.05, color='black', linestyle='dashed', linewidth=2, label='alpha=0.05')
-        plot_cdf(aa_p_values, label=cdf_h0_title, ax=ax[0])
-        plot_cdf(ab_p_values, label=cdf_h1_title, ax=ax[1])
+        fig, ax = plt.subplot_mosaic('AB;CC', gridspec_kw={'height_ratios': [1, 0.1]}, constrained_layout=True)
+        ax['A'].set_title(cdf_h0_title, fontsize=10)
+        plot_cdf(aa_p_values, label=cdf_h0_title, ax=ax['A'])
+
+        ax['B'].set_title(cdf_h1_title, fontsize=10)
+        ax['B'].axvline(0.05, color='black', linestyle='dashed', linewidth=2, label='alpha=0.05')
+        plot_cdf(ab_p_values, label=cdf_h1_title, ax=ax['B'])
+
+        ax['C'].set_title('Power', fontsize=10)
+        ax['C'].set_xlim(0, 1)
+        ax['C'].yaxis.set_tick_params(labelleft=False)
+        ax['C'].barh(y=0, width=tests_power, label='Power')
     else:
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
