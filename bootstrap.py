@@ -497,22 +497,31 @@ def sanity_check(control: np.ndarray, treatment: np.ndarray, number_of_experimen
 
     cdf_h0_title = 'Simulated p-value CDFs under H0 (FPR)'
     cdf_h1_title = 'Simulated p-value CDFs under H1 (Sensitivity)'
+    p_value_h0_title = 'Simulated p-values under H0'
+    p_value_h1_title = 'Simulated p-values under H1'
 
     tests_power = np.mean(ab_p_values < 0.05)
 
     if ab_simulation:
-        fig, ax = plt.subplot_mosaic('AB;CC', gridspec_kw={'height_ratios': [1, 0.1]}, constrained_layout=True)
-        ax['A'].set_title(cdf_h0_title, fontsize=10)
-        plot_cdf(aa_p_values, label=cdf_h0_title, ax=ax['A'])
+        fig, ax = plt.subplot_mosaic('AB;CD;FF', gridspec_kw={'height_ratios': [1, 1, 0.3], 'width_ratios': [1, 1]},
+                                     constrained_layout=True)
 
-        ax['B'].set_title(cdf_h1_title, fontsize=10)
-        ax['B'].axvline(0.05, color='black', linestyle='dashed', linewidth=2, label='alpha=0.05')
-        plot_cdf(ab_p_values, label=cdf_h1_title, ax=ax['B'])
+        ax['A'].set_title(p_value_h0_title, fontsize=10)
+        ax['A'].hist(aa_p_values, bins=50, density=True, label=p_value_h0_title, alpha=0.5)
+        ax['B'].set_title(p_value_h1_title, fontsize=10)
+        ax['B'].hist(ab_p_values, bins=50, density=True, label=p_value_h1_title, alpha=0.5)
 
-        ax['C'].set_title('Power', fontsize=10)
-        ax['C'].set_xlim(0, 1)
-        ax['C'].yaxis.set_tick_params(labelleft=False)
-        ax['C'].barh(y=0, width=tests_power, label='Power')
+        ax['C'].set_title(cdf_h0_title, fontsize=10)
+        plot_cdf(aa_p_values, label=cdf_h0_title, ax=ax['C'])
+
+        ax['D'].set_title(cdf_h1_title, fontsize=10)
+        ax['D'].axvline(0.05, color='black', linestyle='dashed', linewidth=2, label='alpha=0.05')
+        plot_cdf(ab_p_values, label=cdf_h1_title, ax=ax['D'])
+
+        ax['F'].set_title('Power', fontsize=10)
+        ax['F'].set_xlim(0, 1)
+        ax['F'].yaxis.set_tick_params(labelleft=False)
+        ax['F'].barh(y=0, width=tests_power, label='Power')
     else:
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
