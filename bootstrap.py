@@ -354,6 +354,36 @@ def poisson_bootstrap(control: np.ndarray, treatment: np.ndarray, number_of_boot
     return p_value
 
 
+def ctr_poisson_bootstrap(ctrs_1: np.ndarray, weights_1: np.ndarray, ctrs_2: np.ndarray, weights_2: np.ndarray,
+                          number_of_bootstrap_samples: int = 10000) -> float:
+    """CTR Poisson-Bootstrap for global CTRs
+
+    Args:
+        ctrs_1 (ndarray): 1D array containing control CTRs
+        weights_1 (ndarray): 1D array containing control weights
+        ctrs_2 (ndarray): 1D array containing treatment CTRs
+        weights_2 (ndarray): 1D array containing treatment weights
+        number_of_bootstrap_samples (int): Number of bootstrap samples
+
+    Returns:
+        float: p-value
+
+    """
+    poisson_bootstraps = scipy.stats.poisson(1).rvs(size=(number_of_bootstrap_samples, ctrs_1.shape[0])).astype(
+        np.int64)
+
+    values_1 = np.matmul(ctrs_1 * weights_1, poisson_bootstraps.T)
+    weights_1 = np.matmul(weights_1, poisson_bootstraps.T)
+
+    values_2 = np.matmul(ctrs_2 * weights_2, poisson_bootstraps.T)
+    weights_2 = np.matmul(weights_2, poisson_bootstraps.T)
+
+    difference = values_2 / weights_2 - values_1 / weights_1
+
+    p_value = estimate_p_value(difference, number_of_bootstrap_samples)
+    return p_value
+
+
 def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: int = 20, q1: float = 0.01,
                             q2: float = 0.99, plot_type: str = 'line', statistic: Callable = difference) -> None:
     """
