@@ -9,6 +9,7 @@ from numpy.random import normal, binomial
 from multiprocess import Pool, cpu_count
 from compare_functions import difference_of_mean, difference
 from scipy.stats import percentileofscore
+from scipy.stats import ttest_ind
 from tqdm.auto import tqdm
 from typing import Tuple, Union, Callable
 
@@ -494,7 +495,8 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
 
 
 def sanity_check(control: np.ndarray, treatment: np.ndarray, number_of_experiments: int = 2000,
-                 bootstrap_function: Callable = bootstrap, statistic: Callable = difference_of_mean,
+                 stat_test: Callable = None, bootstrap_function: Callable = spotify_two_sample_bootstrap,
+                 statistic: Callable = difference,
                  ab_simulation: bool = True) -> None:
     """Sanity check for A/A and A/B testing
 
@@ -502,6 +504,7 @@ def sanity_check(control: np.ndarray, treatment: np.ndarray, number_of_experimen
         control (ndarray): 1D array containing control sample
         treatment (ndarray): 1D array containing treatment sample
         number_of_experiments (int): Number of experiments to run. Defaults to 2000
+        stat_test (Callable): Statistical test function. Defaults to None
         bootstrap_function (Callable): Bootstrap function. Defaults to spotify_two_sample_bootstrap
         statistic (Callable): Statistic function. Defaults to difference_of_mean
         ab_simulation (bool): Whether to run A/B simulation. Defaults to True
@@ -513,17 +516,26 @@ def sanity_check(control: np.ndarray, treatment: np.ndarray, number_of_experimen
     treatment_size = treatment.shape[0]
 
     for i in range(number_of_experiments):
-        p_value_aa, _, _, _ = bootstrap_function(np.random.choice(control, control_size, replace=True),
-                                                 np.random.choice(control, control_size, replace=True), plot=False,
-                                                 statistic=statistic)
-        aa_p_values[i] = p_value_aa
+        if stat_test:
+            _, p_value_aa = ttest_ind(np.random.choice(control, control_size, replace=True),
+                                      np.random.choice(control, control_size, replace=True))
+            aa_p_values[i] = p_value_aa
 
-        if ab_simulation:
-            p_value_ab, _, _, _ = bootstrap_function(np.random.choice(control, control_size, replace=True),
-                                                     np.random.choice(treatment, treatment_size, replace=True),
-                                                     plot=False,
+            if ab_simulation:
+                _, p_value_ab = ttest_ind(np.random.choice(control, control_size, replace=True),
+                                          np.random.choice(treatment, treatment_size, replace=True))
+                ab_p_values[i] = p_value_ab
+        else:
+            p_value_aa, _, _, _ = bootstrap_function(np.random.choice(control, control_size, replace=True),
+                                                     np.random.choice(control, control_size, replace=True), plot=False,
                                                      statistic=statistic)
-            ab_p_values[i] = p_value_ab
+            aa_p_values[i] = p_value_aa
+            if ab_simulation:
+                p_value_ab, _, _, _ = bootstrap_function(np.random.choice(control, control_size, replace=True),
+                                                         np.random.choice(treatment, treatment_size, replace=True),
+                                                         plot=False,
+                                                         statistic=statistic)
+                ab_p_values[i] = p_value_ab
 
     cdf_h0_title = 'Simulated p-value CDFs under H0 (FPR)'
     cdf_h1_title = 'Simulated p-value CDFs under H1 (Sensitivity)'
