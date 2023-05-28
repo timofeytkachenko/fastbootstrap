@@ -495,8 +495,8 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
 
 
 def sanity_check(control: np.ndarray, treatment: np.ndarray, number_of_experiments: int = 2000,
-                 stat_test: Callable = None, bootstrap_function: Callable = spotify_two_sample_bootstrap,
-                 statistic: Callable = difference,
+                 stat_test: Callable = ttest_ind, bootstrap_function: Callable = None,
+                 statistic: Callable = None,
                  ab_simulation: bool = True) -> None:
     """Sanity check for A/A and A/B testing
 
@@ -504,9 +504,9 @@ def sanity_check(control: np.ndarray, treatment: np.ndarray, number_of_experimen
         control (ndarray): 1D array containing control sample
         treatment (ndarray): 1D array containing treatment sample
         number_of_experiments (int): Number of experiments to run. Defaults to 2000
-        stat_test (Callable): Statistical test function. Defaults to None
-        bootstrap_function (Callable): Bootstrap function. Defaults to spotify_two_sample_bootstrap
-        statistic (Callable): Statistic function. Defaults to difference_of_mean
+        stat_test (Callable): Statistical test function. Defaults to ttest_ind
+        bootstrap_function (Callable): Bootstrap function. Defaults to None
+        statistic (Callable): Statistic function. Defaults to None
         ab_simulation (bool): Whether to run A/B simulation. Defaults to True
     """
 
@@ -516,16 +516,7 @@ def sanity_check(control: np.ndarray, treatment: np.ndarray, number_of_experimen
     treatment_size = treatment.shape[0]
 
     for i in range(number_of_experiments):
-        if stat_test:
-            _, p_value_aa = ttest_ind(np.random.choice(control, control_size, replace=True),
-                                      np.random.choice(control, control_size, replace=True))
-            aa_p_values[i] = p_value_aa
-
-            if ab_simulation:
-                _, p_value_ab = ttest_ind(np.random.choice(control, control_size, replace=True),
-                                          np.random.choice(treatment, treatment_size, replace=True))
-                ab_p_values[i] = p_value_ab
-        else:
+        if bootstrap_function:
             p_value_aa, _, _, _ = bootstrap_function(np.random.choice(control, control_size, replace=True),
                                                      np.random.choice(control, control_size, replace=True), plot=False,
                                                      statistic=statistic)
@@ -535,6 +526,18 @@ def sanity_check(control: np.ndarray, treatment: np.ndarray, number_of_experimen
                                                          np.random.choice(treatment, treatment_size, replace=True),
                                                          plot=False,
                                                          statistic=statistic)
+                ab_p_values[i] = p_value_ab
+
+
+        else:
+
+            _, p_value_aa = stat_test(np.random.choice(control, control_size, replace=True),
+                                      np.random.choice(control, control_size, replace=True))
+            aa_p_values[i] = p_value_aa
+
+            if ab_simulation:
+                _, p_value_ab = stat_test(np.random.choice(control, control_size, replace=True),
+                                          np.random.choice(treatment, treatment_size, replace=True))
                 ab_p_values[i] = p_value_ab
 
     cdf_h0_title = 'Simulated p-value CDFs under H0 (FPR)'
