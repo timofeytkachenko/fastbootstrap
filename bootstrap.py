@@ -592,3 +592,28 @@ def plot_cdf(p_values: np.ndarray, label: str, ax: Axes, linewidth: float = 3) -
     cdf = np.hstack((cdf, 1))
 
     ax.plot(sorted_data, cdf, label=label, linestyle='solid', linewidth=linewidth)
+
+
+def intra_user_correlation_aware_weights(clicks_1: np.ndarray, views_1: np.ndarray, views_2: np.ndarray) -> Tuple[
+    np.ndarray, np.ndarray]:
+    """Calculates weights for UMVUE global ctr estimate for every user in every experiment both in treatment and control groups
+
+    Args:
+        clicks_1 (ndarray): clicks of every user from control group in every experiment
+        views_1 (ndarray): views of every user from control group in every experiment
+        views_2 (ndarray): views of every user from treatment group in every experiment
+
+    Returns:
+        Tuple[ndarray, ndarray]: weights for every user in every experiment
+
+    """
+    ri = clicks_1 / views_1
+    s3 = clicks_1 * (1 - ri) ** 2 + (views_1 - clicks_1) * ri ** 2
+    s3 = np.sum(s3, axis=0) / np.sum(views_1 - 1, axis=0)
+    rb = np.mean(clicks_1 / views_1, axis=0)
+    s2 = clicks_1 * (1 - rb) ** 2 + (views_1 - clicks_1) * rb ** 2
+    s2 = np.sum(s2, axis=0) / (np.sum(views_1, axis=0) - 1)
+    rho = np.maximum(0, 1 - s3 / s2)
+    w_1 = views_1 / (1 + (views_1 - 1) * rho)
+    w_2 = views_2 / (1 + (views_2 - 1) * rho)
+    return w_1, w_2
