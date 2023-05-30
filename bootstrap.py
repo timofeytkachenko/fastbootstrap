@@ -12,6 +12,7 @@ from scipy.stats import percentileofscore
 from scipy.stats import ttest_ind
 from tqdm.auto import tqdm
 from typing import Tuple, Union, Callable
+from inspect import getfullargspec
 
 plt.style.use('ggplot')
 
@@ -517,7 +518,7 @@ def sanity_check(control: np.ndarray, treatment: np.ndarray, number_of_experimen
 
     for i in range(number_of_experiments):
         if bootstrap_function:
-            if hasattr(bootstrap_function, 'statistic'):
+            if 'statistic' in getfullargspec(bootstrap_function).args:
                 p_value_aa, _, _, _ = bootstrap_function(np.random.choice(control, control_size, replace=True),
                                                          np.random.choice(control, control_size, replace=True),
                                                          statistic=statistic)
