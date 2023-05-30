@@ -528,12 +528,12 @@ def sanity_check(control: np.ndarray, treatment: np.ndarray, number_of_experimen
                                                              statistic=statistic)
                     ab_p_values[i] = p_value_ab
             else:
-                p_value_aa, _, _, _ = bootstrap_function(np.random.choice(control, control_size, replace=True),
-                                                         np.random.choice(control, control_size, replace=True))
+                p_value_aa = bootstrap_function(np.random.choice(control, control_size, replace=True),
+                                                np.random.choice(control, control_size, replace=True))
                 aa_p_values[i] = p_value_aa
                 if ab_simulation:
-                    p_value_ab, _, _, _ = bootstrap_function(np.random.choice(control, control_size, replace=True),
-                                                             np.random.choice(treatment, treatment_size, replace=True))
+                    p_value_ab = bootstrap_function(np.random.choice(control, control_size, replace=True),
+                                                    np.random.choice(treatment, treatment_size, replace=True))
                     ab_p_values[i] = p_value_ab
         else:
             _, p_value_aa = stat_test(np.random.choice(control, control_size, replace=True),
