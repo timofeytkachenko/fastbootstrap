@@ -507,6 +507,7 @@ def sanity_check(control: np.ndarray, treatment: np.ndarray, number_of_experimen
         bootstrap_function (Callable): Bootstrap function. Defaults to None
         statistic (Callable): Statistic function. Defaults to None
         ab_simulation (bool): Whether to run A/B simulation. Defaults to True
+
     """
 
     aa_p_values = np.zeros(shape=number_of_experiments)
@@ -516,20 +517,25 @@ def sanity_check(control: np.ndarray, treatment: np.ndarray, number_of_experimen
 
     for i in range(number_of_experiments):
         if bootstrap_function:
-            p_value_aa, _, _, _ = bootstrap_function(np.random.choice(control, control_size, replace=True),
-                                                     np.random.choice(control, control_size, replace=True), plot=False,
-                                                     statistic=statistic)
-            aa_p_values[i] = p_value_aa
-            if ab_simulation:
-                p_value_ab, _, _, _ = bootstrap_function(np.random.choice(control, control_size, replace=True),
-                                                         np.random.choice(treatment, treatment_size, replace=True),
-                                                         plot=False,
+            if hasattr(bootstrap_function, 'statistic'):
+                p_value_aa, _, _, _ = bootstrap_function(np.random.choice(control, control_size, replace=True),
+                                                         np.random.choice(control, control_size, replace=True),
                                                          statistic=statistic)
-                ab_p_values[i] = p_value_ab
-
-
+                aa_p_values[i] = p_value_aa
+                if ab_simulation:
+                    p_value_ab, _, _, _ = bootstrap_function(np.random.choice(control, control_size, replace=True),
+                                                             np.random.choice(treatment, treatment_size, replace=True),
+                                                             statistic=statistic)
+                    ab_p_values[i] = p_value_ab
+            else:
+                p_value_aa, _, _, _ = bootstrap_function(np.random.choice(control, control_size, replace=True),
+                                                         np.random.choice(control, control_size, replace=True))
+                aa_p_values[i] = p_value_aa
+                if ab_simulation:
+                    p_value_ab, _, _, _ = bootstrap_function(np.random.choice(control, control_size, replace=True),
+                                                             np.random.choice(treatment, treatment_size, replace=True))
+                    ab_p_values[i] = p_value_ab
         else:
-
             _, p_value_aa = stat_test(np.random.choice(control, control_size, replace=True),
                                       np.random.choice(control, control_size, replace=True))
             aa_p_values[i] = p_value_aa
