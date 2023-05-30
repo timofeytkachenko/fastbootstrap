@@ -132,7 +132,7 @@ def bootstrap_plot(bootstrap_difference_distribution: np.ndarray, bootstrap_conf
 def bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: float = 0.95,
               number_of_bootstrap_samples: int = 10000,
               sample_size: int = None,
-              statistic: Callable = difference_of_mean, plot: bool = True, progress_bar: bool = False) -> Tuple[
+              statistic: Callable = difference_of_mean, plot: bool = False, progress_bar: bool = False) -> Tuple[
     float, float, np.ndarray, np.ndarray]:
     """Two-sample bootstrap
 
@@ -189,7 +189,7 @@ def bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: 
 
 def ctr_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: float = 0.95,
                   number_of_bootstrap_samples: int = 10000,
-                  sample_size: int = None, plot: bool = True, progress_bar: bool = False) -> Tuple[
+                  sample_size: int = None, plot: bool = False, progress_bar: bool = False) -> Tuple[
     float, float, np.ndarray, np.ndarray]:
     """Two-sample CTR-Bootstrap
 
@@ -277,11 +277,11 @@ def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, qu
     return np.quantile(sample_sorted, quantile_of_interest), bootstrap_confidence_interval
 
 
-def spotify_two_sample_bootstrap(control: object, treatment: object, number_of_bootstrap_samples: object = 10000,
-                                 sample_size: object = None, quantile_of_interest: object = 0.5,
-                                 statistic: object = difference,
-                                 bootstrap_conf_level: object = 0.95,
-                                 plot: object = True) -> object:
+def spotify_two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, number_of_bootstrap_samples: int = 10000,
+                                 sample_size: int = None, quantile_of_interest: float = 0.5,
+                                 statistic: Callable = difference,
+                                 bootstrap_conf_level: float = 0.95,
+                                 plot: bool = False) -> Tuple[float, float, np.ndarray, np.ndarray]:
     """Two-sample Spotify-Bootstrap
     
     Mårten Schultzberg and Sebastian Ankargren. “Resampling-free bootstrap inference for quantiles.”
@@ -404,8 +404,7 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
     for quantile in quantiles_to_compare:
         p_value, bootstrap_mean, bootstrap_confidence_interval, _ = spotify_two_sample_bootstrap(control, treatment,
                                                                                                  quantile_of_interest=quantile,
-                                                                                                 statistic=statistic,
-                                                                                                 plot=False)
+                                                                                                 statistic=statistic)
         statistics.append([p_value, bootstrap_mean, bootstrap_confidence_interval[0], bootstrap_confidence_interval[1]])
     statistics = np.array(statistics)
 
@@ -591,6 +590,7 @@ def plot_cdf(p_values: np.ndarray, label: str, ax: Axes, linewidth: float = 3) -
     sorted_data = np.hstack((sorted_p_values, 1))
     cdf = np.hstack((cdf, 1))
 
+    ax.plot([0, 1], [0, 1], linestyle='--', color='black')
     ax.plot(sorted_data, cdf, label=label, linestyle='solid', linewidth=linewidth)
 
 
