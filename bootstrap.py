@@ -19,33 +19,6 @@ plt.style.use('ggplot')
 colors = {'False': 'red', 'True': 'black'}
 
 
-def estimate_quantile_of_mean(sample: np.ndarray, batch_size_percent: int = 5, bootstrap_conf_level: float = 0.95,
-                              shuffle: bool = True) -> float:
-    """
-
-    Args:
-        sample (ndarray): 1D array containing observations
-        batch_size_percent (int): Batch size. Defaults to 5% of sample size
-        bootstrap_conf_level (float): bootstrap confidence level. Defaults to 0.95
-        shuffle (bool): If True, then sample will be shuffled. Defaults to True
-
-    Returns:
-        Tuple[float, ndarray]: Tuple containing mean quantile and quantile confidence interval
-
-    """
-    if shuffle:
-        np.random.shuffle(sample)
-
-    batch_size = int(np.ceil(sample.shape[0] * batch_size_percent / 100))
-    batches = np.array_split(sample, batch_size)
-    batch_means = np.array([np.mean(batch) for batch in batches])
-    mean = np.median(batch_means)
-    mean_quantile_distribution = np.array([percentileofscore(batch, score=mean) / 100 for batch in batches])
-    confidence_interval = estimate_confidence_interval(mean_quantile_distribution,
-                                                       bootstrap_conf_level=bootstrap_conf_level)
-    return np.median(mean_quantile_distribution), confidence_interval
-
-
 def estimate_confidence_interval(distribution: np.ndarray, bootstrap_conf_level: float = 0.95) -> np.ndarray:
     """Estimation confidence interval of distribution
 
@@ -624,3 +597,34 @@ def intra_user_correlation_aware_weights(clicks_1: np.ndarray, views_1: np.ndarr
     w_1 = views_1 / (1 + (views_1 - 1) * rho)
     w_2 = views_2 / (1 + (views_2 - 1) * rho)
     return w_1, w_2
+
+
+def estimate_quantile_of_mean(control: np.ndarray, bootstrap_conf_level: float = 0.95,
+                              number_of_bootstrap_samples: int = 10000) -> Tuple[float, np.ndarray]:
+    """Estimation quantile of the mean of the control group
+
+    Args:
+        control (ndarray):  array of control group data
+        bootstrap_conf_level (float): confidence level for bootstrap confidence interval
+        number_of_bootstrap_samples (int): number of bootstrap samples
+
+    Returns:
+        Tuple[float, np.ndarray]: quantile of the mean of the control group and bootstrap confidence interval
+
+    """
+    def sample():
+        control_sample = np.random.choice(control, size=control.shape[0], replace=True)
+        quantile_of_mean = percentileofscore(control_sample, np.mean(control_sample)) / 100
+        return quantile_of_mean
+
+    if control.shape[0] > 10000:
+        pool = Pool(cpu_count())
+        quantile_array = np.array(pool.starmap(sample,
+                                               [() for i in range(number_of_bootstrap_samples)]))
+        pool.close()
+    else:
+        quantile_array = np.array([sample() for i in range(number_of_bootstrap_samples)])
+
+    confidence_interval = estimate_confidence_interval(quantile_array,
+                                                       bootstrap_conf_level=bootstrap_conf_level)
+    return np.mean(quantile_array), confidence_interval
