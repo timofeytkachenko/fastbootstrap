@@ -359,89 +359,66 @@ def ctr_poisson_bootstrap(ctrs_1: np.ndarray, weights_1: np.ndarray, ctrs_2: np.
     return p_value
 
 
-def sanity_check(control: np.ndarray, treatment: np.ndarray, number_of_experiments: int = 2000,
-                 stat_test: Callable = ttest_ind, statistic: Callable = None,
-                 ab_simulation: bool = True) -> None:
-    """Sanity check for A/A and A/B testing
+def ab_test_simulation(control: np.ndarray, treatment: np.ndarray, number_of_experiments: int = 2000,
+                       stat_test: Callable = ttest_ind) -> np.ndarray:
+    """A/B test simulation
 
     Args:
         control (ndarray): 1D array containing control sample
         treatment (ndarray): 1D array containing treatment sample
-        number_of_experiments (int): Number of experiments to run. Defaults to 2000
-        stat_test (Callable): Statistical test function. Defaults to ttest_ind
-        statistic (Callable): Statistic function. Defaults to None
-        ab_simulation (bool): Whether to run A/B simulation. Defaults to True
+        number_of_experiments (int): Number of experiments. Defaults to 2000
+        stat_test (Callable): Statistical test. Defaults to ttest_ind
 
+    Returns:
+        ndarray: Array containing p-values
+        
     """
 
-    aa_p_values = np.zeros(shape=number_of_experiments)
     ab_p_values = np.zeros(shape=number_of_experiments)
-    control_size = control.shape[0]
-    treatment_size = treatment.shape[0]
+    control_size, treatment_size = control.shape[0], treatment.shape[0]
 
     for i in range(number_of_experiments):
-        if 'bootstrap' in stat_test.__name__:
-            if 'statistic' in getfullargspec(stat_test).args:
-                p_value_aa, _, _, _ = stat_test(np.random.choice(control, control_size, replace=True),
-                                                np.random.choice(control, control_size, replace=True),
-                                                statistic=statistic)
-                aa_p_values[i] = p_value_aa
-                if ab_simulation:
-                    p_value_ab, _, _, _ = stat_test(np.random.choice(control, control_size, replace=True),
-                                                    np.random.choice(treatment, treatment_size, replace=True),
-                                                    statistic=statistic)
-                    ab_p_values[i] = p_value_ab
-            else:
-                p_value_aa = stat_test(np.random.choice(control, control_size, replace=True),
-                                       np.random.choice(control, control_size, replace=True))
-                aa_p_values[i] = p_value_aa
+        _, p_value_ab = stat_test(np.random.choice(control, control_size, replace=True),
+                                  np.random.choice(treatment, treatment_size, replace=True))
+        ab_p_values[i] = p_value_ab
+    return ab_p_values
 
-                if ab_simulation:
-                    p_value_ab = stat_test(np.random.choice(control, control_size, replace=True),
-                                           np.random.choice(treatment, treatment_size, replace=True))
-                    ab_p_values[i] = p_value_ab
-        else:
-            _, p_value_aa = stat_test(np.random.choice(control, control_size, replace=True),
-                                      np.random.choice(control, control_size, replace=True))
-            aa_p_values[i] = p_value_aa
 
-            if ab_simulation:
-                _, p_value_ab = stat_test(np.random.choice(control, control_size, replace=True),
-                                          np.random.choice(treatment, treatment_size, replace=True))
-                ab_p_values[i] = p_value_ab
+def sanity_check(aa_p_values: np.ndarray, ab_p_values: np.ndarray) -> None:
+    """Sanity check for A/A and A/B testing
+
+    Args:
+        aa_p_values (ndarray): 1D array containing A/A p-values
+        treatment (ndarray): 1D array containing A/B p-values
+
+    """
 
     cdf_h0_title = 'Simulated p-value CDFs under H0 (FPR)'
     cdf_h1_title = 'Simulated p-value CDFs under H1 (Sensitivity)'
     p_value_h0_title = 'Simulated p-values under H0'
     p_value_h1_title = 'Simulated p-values under H1'
 
-    if ab_simulation:
-        tests_power = np.mean(ab_p_values < 0.05)
+    tests_power = np.mean(ab_p_values < 0.05)
 
-        fig, ax = plt.subplot_mosaic('AB;CD;FF', gridspec_kw={'height_ratios': [1, 1, 0.3], 'width_ratios': [1, 1]},
-                                     constrained_layout=True)
+    fig, ax = plt.subplot_mosaic('AB;CD;FF', gridspec_kw={'height_ratios': [1, 1, 0.3], 'width_ratios': [1, 1]},
+                                 constrained_layout=True)
 
-        ax['A'].set_title(p_value_h0_title, fontsize=10)
-        ax['A'].hist(aa_p_values, bins=50, density=True, label=p_value_h0_title, alpha=0.5)
-        ax['B'].set_title(p_value_h1_title, fontsize=10)
-        ax['B'].hist(ab_p_values, bins=50, density=True, label=p_value_h1_title, alpha=0.5)
+    ax['A'].set_title(p_value_h0_title, fontsize=10)
+    ax['A'].hist(aa_p_values, bins=50, density=True, label=p_value_h0_title, alpha=0.5)
+    ax['B'].set_title(p_value_h1_title, fontsize=10)
+    ax['B'].hist(ab_p_values, bins=50, density=True, label=p_value_h1_title, alpha=0.5)
 
-        ax['C'].set_title(cdf_h0_title, fontsize=10)
-        plot_cdf(aa_p_values, label=cdf_h0_title, ax=ax['C'])
+    ax['C'].set_title(cdf_h0_title, fontsize=10)
+    plot_cdf(aa_p_values, label=cdf_h0_title, ax=ax['C'])
 
-        ax['D'].set_title(cdf_h1_title, fontsize=10)
-        ax['D'].axvline(0.05, color='black', linestyle='dashed', linewidth=2, label='alpha=0.05')
-        plot_cdf(ab_p_values, label=cdf_h1_title, ax=ax['D'])
+    ax['D'].set_title(cdf_h1_title, fontsize=10)
+    ax['D'].axvline(0.05, color='black', linestyle='dashed', linewidth=2, label='alpha=0.05')
+    plot_cdf(ab_p_values, label=cdf_h1_title, ax=ax['D'])
 
-        ax['F'].set_title('Power', fontsize=10)
-        ax['F'].set_xlim(0, 1)
-        ax['F'].yaxis.set_tick_params(labelleft=False)
-        ax['F'].barh(y=0, width=tests_power, label='Power')
-    else:
-        fig = plt.figure()
-        ax = fig.add_subplot(1, 1, 1)
-        ax.set_title(cdf_h0_title)
-        plot_cdf(aa_p_values, label=cdf_h0_title, ax=ax)
+    ax['F'].set_title('Power', fontsize=10)
+    ax['F'].set_xlim(0, 1)
+    ax['F'].yaxis.set_tick_params(labelleft=False)
+    ax['F'].barh(y=0, width=tests_power, label='Power')
 
 
 def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: int = 20, q1: float = 0.01,
