@@ -374,18 +374,20 @@ def ab_test_simulation(control: np.ndarray, treatment: np.ndarray, number_of_exp
         
     """
 
-    ab_p_values = np.zeros(shape=number_of_experiments)
+    def experiment():
+        return stat_test(np.random.choice(control, control_size, replace=True),
+                         np.random.choice(treatment, treatment_size, replace=True))[1]
+
     control_size, treatment_size = control.shape[0], treatment.shape[0]
 
-    for i in range(number_of_experiments):
-        _, p_value_ab = stat_test(np.random.choice(control, control_size, replace=True),
-                                  np.random.choice(treatment, treatment_size, replace=True))
-        ab_p_values[i] = p_value_ab
+    pool = Pool(cpu_count())
+    ab_p_values = np.array(pool.starmap(experiment, [() for i in range(number_of_experiments)]))
+    pool.close()
     return ab_p_values
 
 
-def sanity_check(aa_p_values: np.ndarray, ab_p_values: np.ndarray) -> None:
-    """Sanity check for A/A and A/B testing
+def plot_summary(aa_p_values: np.ndarray, ab_p_values: np.ndarray) -> None:
+    """Plot summary for A/A and A/B testing
 
     Args:
         aa_p_values (ndarray): 1D array containing A/A p-values
@@ -398,7 +400,7 @@ def sanity_check(aa_p_values: np.ndarray, ab_p_values: np.ndarray) -> None:
     p_value_h0_title = 'Simulated p-values under H0'
     p_value_h1_title = 'Simulated p-values under H1'
 
-    tests_power = np.mean(ab_p_values < 0.05)
+    test_power = np.mean(ab_p_values < 0.05)
 
     fig, ax = plt.subplot_mosaic('AB;CD;FF', gridspec_kw={'height_ratios': [1, 1, 0.3], 'width_ratios': [1, 1]},
                                  constrained_layout=True)
@@ -418,7 +420,7 @@ def sanity_check(aa_p_values: np.ndarray, ab_p_values: np.ndarray) -> None:
     ax['F'].set_title('Power', fontsize=10)
     ax['F'].set_xlim(0, 1)
     ax['F'].yaxis.set_tick_params(labelleft=False)
-    ax['F'].barh(y=0, width=tests_power, label='Power')
+    ax['F'].barh(y=0, width=test_power, label='Power')
 
 
 def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: int = 20, q1: float = 0.01,
