@@ -360,7 +360,7 @@ def ctr_poisson_bootstrap(ctrs_1: np.ndarray, weights_1: np.ndarray, ctrs_2: np.
 
 
 def ab_test_simulation(control: np.ndarray, treatment: np.ndarray, number_of_experiments: int = 2000,
-                       stat_test: Callable = ttest_ind) -> np.ndarray:
+                       stat_test: Callable = ttest_ind) -> Tuple[np.ndarray, float, float]:
     """A/B test simulation
 
     Args:
@@ -370,7 +370,7 @@ def ab_test_simulation(control: np.ndarray, treatment: np.ndarray, number_of_exp
         stat_test (Callable): Statistical test. Defaults to ttest_ind
 
     Returns:
-        ndarray: Array containing p-values
+        Tuple[np.ndarray, float, float]: Tuple containing p-values, test power and AUC
         
     """
 
@@ -383,7 +383,12 @@ def ab_test_simulation(control: np.ndarray, treatment: np.ndarray, number_of_exp
     pool = Pool(cpu_count())
     ab_p_values = np.array(pool.starmap(experiment, [() for i in range(number_of_experiments)]))
     pool.close()
-    return ab_p_values
+
+    test_power = np.mean(ab_p_values < 0.05)
+    ab_p_values_sorted = np.sort(ab_p_values)
+    auc = np.trapz(np.arange(ab_p_values_sorted.shape[0]) / ab_p_values_sorted.shape[0], ab_p_values_sorted)
+
+    return ab_p_values, test_power, auc
 
 
 def plot_summary(aa_p_values: np.ndarray, ab_p_values: np.ndarray) -> None:
