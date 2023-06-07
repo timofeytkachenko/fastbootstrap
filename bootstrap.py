@@ -429,7 +429,7 @@ def plot_summary(aa_p_values: np.ndarray, ab_p_values: np.ndarray) -> None:
 
 
 def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: int = 20, q1: float = 0.01,
-                            q2: float = 0.99, plot_type: str = 'line', statistic: Callable = difference) -> None:
+                            q2: float = 0.99, statistic: Callable = difference) -> None:
     """
 
     Args:
@@ -438,7 +438,6 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
         n_step (int): Number of quantiles to compare. Defaults to 20
         q1 (float): Lower quantile. Defaults to 0.025
         q2 (float): Upper quantile. Defaults to 0.975
-        plot_type (str): Plot type. Defaults to 'line'. Choose from 'line' or 'bar'
         statistic (Callable): Statistic function. Defaults to difference.
 
     """
@@ -463,76 +462,42 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
     df["ci_upper"] = df["upper_bound"] - df["difference"]
     df["ci_lower"] = df["difference"] - df["lower_bound"]
 
-    if plot_type == 'bar':
-        fig = go.Figure(data=[go.Bar(
-            x=df["quantile"],
-            y=df["difference"],
-            marker_color=df['significance'].map(colors),
-            customdata=df
-
-        )])
-
-        fig.update_traces(
-            error_y={
-                "type": "data",
-                "symmetric": False,
-                "array": df["ci_upper"],
-                "arrayminus": df["ci_lower"]
-            }
+    fig = go.Figure([
+        go.Scatter(
+            name='Difference',
+            x=df['quantile'],
+            y=df['difference'],
+            mode='lines',
+            line=dict(color='red'),
+        ),
+        go.Scatter(
+            name='Upper Bound',
+            x=df['quantile'],
+            y=df['upper_bound'],
+            mode='lines',
+            marker=dict(color="black"),
+            line=dict(width=0),
+            showlegend=False
+        ),
+        go.Scatter(
+            name='Lower Bound',
+            x=df['quantile'],
+            y=df['lower_bound'],
+            marker=dict(color="black"),
+            line=dict(width=0),
+            mode='lines',
+            fillcolor='rgba(68, 68, 68, 0.3)',
+            fill='tonexty',
+            showlegend=False
         )
+    ])
+    fig.add_hline(y=0, line_width=3, line_dash="dash", line_color="black")
+    fig.update_layout(
+        yaxis_title='Difference',
+        title='Quantile Bootstrap Line Plot',
+        hovermode="x"
+    )
 
-        fig.update_traces(
-            name='Quantile Information',
-            hovertemplate="<br>".join([
-                "Quantile: %{customdata[0]}",
-                "p_value: %{customdata[1]}",
-                "Significance: %{customdata[5]}",
-                "Difference: %{customdata[2]}",
-                "Lower Bound: %{customdata[3]}",
-                "Upper Bound: %{customdata[4]}"
-            ])
-        )
-
-        fig.update_layout(title_text='Quantile Bootstrap Bar Plot')
-        fig.show()
-    else:
-        fig = go.Figure([
-            go.Scatter(
-                name='Difference',
-                x=df['quantile'],
-                y=df['difference'],
-                mode='lines',
-                line=dict(color='red'),
-            ),
-            go.Scatter(
-                name='Upper Bound',
-                x=df['quantile'],
-                y=df['upper_bound'],
-                mode='lines',
-                marker=dict(color="black"),
-                line=dict(width=0),
-                showlegend=False
-            ),
-            go.Scatter(
-                name='Lower Bound',
-                x=df['quantile'],
-                y=df['lower_bound'],
-                marker=dict(color="black"),
-                line=dict(width=0),
-                mode='lines',
-                fillcolor='rgba(68, 68, 68, 0.3)',
-                fill='tonexty',
-                showlegend=False
-            )
-        ])
-        fig.add_hline(y=0, line_width=3, line_dash="dash", line_color="black")
-        fig.update_layout(
-            yaxis_title='Difference',
-            title='Quantile Bootstrap Line Plot',
-            hovermode="x"
-        )
-
-    fig.write_image("quantile_bootstrap_plot.png", engine='orca')
     fig.show()
 
 
