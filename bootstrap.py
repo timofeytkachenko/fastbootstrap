@@ -252,12 +252,15 @@ def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, qu
 
 
 def spotify_two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, number_of_bootstrap_samples: int = 10000,
-                                 sample_size: int = None, quantile_of_interest: float = 0.5,
+                                 sample_size: int = None, q1: float = 0.5, q2: float = 0.5,
                                  statistic: Callable = difference,
                                  bootstrap_conf_level: float = 0.95,
                                  plot: bool = False) -> Tuple[float, float, np.ndarray, np.ndarray]:
     """Two-sample Spotify-Bootstrap
-    
+
+    Can be used for difference of quantiles, difference of means, difference of medians, etc.
+    Note: Can be used with different quantiles for control and treatment samples
+
     Mårten Schultzberg and Sebastian Ankargren. “Resampling-free bootstrap inference for quantiles.”
     arXiv e-prints, art. arXiv:2202.10992, (2022). https://arxiv.org/abs/2202.10992
 
@@ -268,7 +271,9 @@ def spotify_two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, num
         number_of_bootstrap_samples (int): Number of bootstrap samples
         sample_size (int): Sample size. Defaults to None. If None,
             then control_sample_size and treatment_sample_size
-            wiil be equal to control.shape[0] and treatment.shape[0] respectively
+            wil be equal to control.shape[0] and treatment.shape[0] respectively
+        q1 (float): Quantile of interest for control sample. Defaults to 0.5
+        q2 (float): Quantile of interest for treatment sample. Defaults to 0.5
         statistic (Callable): Statistic function. Defaults to difference.
             Choose statistic function from compare_functions.py
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
@@ -286,19 +291,18 @@ def spotify_two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, num
     sorted_control = np.sort(control)
     sorted_treatment = np.sort(treatment)
     treatment_sample_values = sorted_treatment[
-        binomial(treatment_sample_size + 1, quantile_of_interest, number_of_bootstrap_samples)]
+        binomial(treatment_sample_size + 1, q2, number_of_bootstrap_samples)]
     control_sample_values = sorted_control[
-        binomial(control_sample_size + 1, quantile_of_interest, number_of_bootstrap_samples)]
+        binomial(control_sample_size + 1, q1, number_of_bootstrap_samples)]
     bootstrap_difference_distribution = statistic(control_sample_values, treatment_sample_values)
 
     bootstrap_difference_mean = statistic(
-        np.quantile(sorted_control, quantile_of_interest), np.quantile(sorted_treatment, quantile_of_interest))
+        np.quantile(sorted_control, q1), np.quantile(sorted_treatment, q2))
 
     bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_difference_distribution,
                                                                  bootstrap_conf_level)
     p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
     if plot:
-        statistic = f'q-{quantile_of_interest} ' + ' '.join([i.capitalize() for i in statistic.__name__.split('_')])
         bootstrap_plot(bootstrap_difference_distribution, bootstrap_confidence_interval, statistic=statistic)
 
     return p_value, bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_difference_distribution
@@ -445,7 +449,8 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
     statistics = list()
     for quantile in quantiles_to_compare:
         p_value, bootstrap_mean, bootstrap_confidence_interval, _ = spotify_two_sample_bootstrap(control, treatment,
-                                                                                                 quantile_of_interest=quantile,
+                                                                                                 q1=quantile,
+                                                                                                 q2=quantile,
                                                                                                  statistic=statistic)
         statistics.append([p_value, bootstrap_mean, bootstrap_confidence_interval[0], bootstrap_confidence_interval[1]])
     statistics = np.array(statistics)
