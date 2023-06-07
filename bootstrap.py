@@ -492,10 +492,18 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
         )
     ])
     fig.add_hline(y=0, line_width=3, line_dash="dash", line_color="black")
-    fig.update_layout(
-        yaxis_title='Difference',
-        title='Quantile Bootstrap Line Plot',
-        hovermode="x"
+
+    fig.update_traces(
+        customdata=df,
+        name='Quantile Information',
+        hovertemplate="<br>".join([
+            "Quantile: %{customdata[0]}",
+            "p_value: %{customdata[1]}",
+            "Significance: %{customdata[5]}",
+            "Difference: %{customdata[2]}",
+            "Lower Bound: %{customdata[3]}",
+            "Upper Bound: %{customdata[4]}"
+        ])
     )
 
     fig.show()
