@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from scipy.stats import norm, binom
 from numpy.random import normal, binomial
-from multiprocess import Pool, cpu_count
+from billiard import Pool, cpu_count
 from compare_functions import difference_of_mean, difference
 from scipy.stats import percentileofscore
 from scipy.stats import ttest_ind
