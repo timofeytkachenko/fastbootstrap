@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from scipy.stats import norm, binom
 from numpy.random import normal, binomial
-from billiard import Pool, cpu_count
+from multiprocess import Pool, cpu_count
 from compare_functions import difference_of_mean, difference
 from scipy.stats import percentileofscore
 from scipy.stats import ttest_ind
@@ -590,3 +590,56 @@ def estimate_quantile_of_mean(control: np.ndarray, bootstrap_conf_level: float =
     confidence_interval = estimate_confidence_interval(quantile_array,
                                                        bootstrap_conf_level=bootstrap_conf_level)
     return np.mean(quantile_array), confidence_interval
+
+
+def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95,
+                         number_of_bootstrap_samples: int = 10000,
+                         sample_size: int = None,
+                         statistic: Callable = np.mean, plot: bool = False, progress_bar: bool = False) -> Tuple[
+    float, float, np.ndarray, np.ndarray]:
+    """One sample bootstrap
+
+    If control.shape[0] > 10000, then multiprocessing will be used
+
+    Args:
+        control (ndarray): 1D array containing control sample
+        bootstrap_conf_level (float): Confidence level
+        number_of_bootstrap_samples (int): Number of bootstrap samples
+        sample_size (int): Sample size. Defaults to None. If None,
+            then control_sample_size and treatment_sample_size
+            wiil be equal to control.shape[0] and treatment.shape[0] respectively
+        statistic (Callable): Statistic function. Defaults to difference_of_mean.
+            Choose statistic function from compare_functions.py
+        plot (bool): If True, then bootstrap plot will be shown. Defaults to True
+        progress_bar (bool): If True, then progress bar will be shown. Defaults to False
+    Returns:
+        Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
+            bootstrap confidence interval, bootstrap difference distribution
+
+    """
+
+    def sample():
+        control_sample = np.random.choice(control, control_sample_size, replace=True)
+        return statistic(control_sample)
+
+    control_sample_size = sample_size if sample_size else control.shape[0]
+
+    if control.shape[0] <= 10000:
+        if progress_bar:
+            bootstrap_difference_distribution = np.array([sample() for i in tqdm(range(number_of_bootstrap_samples))])
+        else:
+            bootstrap_difference_distribution = np.array([sample() for i in range(number_of_bootstrap_samples)])
+    else:
+        pool = Pool(cpu_count())
+        bootstrap_difference_distribution = np.array(
+            pool.starmap(sample, [() for i in range(number_of_bootstrap_samples)]))
+        pool.close()
+
+    bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_difference_distribution,
+                                                                 bootstrap_conf_level)
+    bootstrap_difference_mean = bootstrap_difference_distribution.mean()
+    p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
+
+    if plot:
+        bootstrap_plot(bootstrap_difference_distribution, bootstrap_confidence_interval, statistic=statistic)
+    return p_value, bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_difference_distribution
