@@ -641,5 +641,17 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
     p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
 
     if plot:
-        bootstrap_plot(bootstrap_difference_distribution, bootstrap_confidence_interval, statistic=statistic)
+        binwidth, _ = estimate_bin_params(bootstrap_difference_distribution)
+        plt.hist(bootstrap_difference_distribution,
+                 bins=np.arange(bootstrap_difference_distribution.min(),
+                                bootstrap_difference_distribution.max() + binwidth,
+                                binwidth))
+        xlabel = ' '.join([i.capitalize() for i in statistic.__name__.split('_')])
+        plt.title('Bootstrap')
+        plt.xlabel(xlabel)
+        plt.ylabel('Count')
+        plt.axvline(x=bootstrap_confidence_interval[0], color='red', linestyle='dashed', linewidth=2)
+        plt.axvline(x=bootstrap_confidence_interval[1], color='red', linestyle='dashed', linewidth=2)
+        plt.axvline(x=bootstrap_difference_distribution.mean(), color='black', linestyle='dashed', linewidth=5)
+        plt.show()
     return p_value, bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_difference_distribution
