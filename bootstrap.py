@@ -698,3 +698,28 @@ def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, q:
         plt.axvline(x=bootstrap_distribution.mean(), color='black', linestyle='dashed', linewidth=5)
         plt.show()
     return np.quantile(sample_sorted, q), bootstrap_confidence_interval, bootstrap_distribution
+
+
+def simple_poisson_bootstrap(control: np.ndarray, treatment: np.ndarray,
+                             number_of_bootstrap_samples: int = 10000) -> int:
+    """Simple Poisson Bootstrap
+
+    Args:
+        control (ndarray): 1D array containing control sample
+        treatment (ndarray): 1D array containing treatment sample
+        number_of_bootstrap_samples (int): Number of bootstrap samples. Defaults to 10000
+
+    Returns:
+        int: p-value
+
+    """
+    control_distribution = np.zeros(shape=number_of_bootstrap_samples)
+    treatment_distribution = np.zeros(shape=number_of_bootstrap_samples)
+    for control_item, treatment_item in zip(control, treatment):
+        weights = np.random.poisson(1, number_of_bootstrap_samples)
+        control_distribution += control_item * weights
+        treatment_distribution += treatment_item * weights
+
+    bootstrap_difference_distribution = treatment_distribution - control_distribution
+    p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
+    return p_value
