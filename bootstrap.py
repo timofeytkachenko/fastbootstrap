@@ -657,7 +657,7 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
     return p_value, bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_difference_distribution
 
 
-def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, quantile_of_interest: float = 0.5,
+def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, q: float = 0.5,
                                  bootstrap_conf_level: float = 0.95, number_of_bootstrap_samples: int = 10000,
                                  plot=False) -> Tuple[float, np.ndarray, np.ndarray]:
     """One-sample Spotify-Bootstrap
@@ -668,7 +668,7 @@ def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, qu
     Args:
         sample (ndarray): 1D array containing sample
         sample_size (int): sample size. Defaults to None
-        quantile_of_interest (float): Quantile of interest. Defaults to 0.5
+        q (float): Quantile of interest. Defaults to 0.5
         bootstrap_conf_level (float): Confidence level. Defaults to 0.95
         number_of_bootstrap_samples (int): Number of bootstrap samples. Defaults to 10000
         plot (bool): Plot histogram of bootstrap distribution. Defaults to False
@@ -683,18 +683,18 @@ def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, qu
     sample_sorted = np.sort(sample)
     left_quant = (1 - bootstrap_conf_level) / 2
     right_quant = 1 - (1 - bootstrap_conf_level) / 2
-    ci_indexes = binom.ppf([left_quant, right_quant], sample_size + 1, quantile_of_interest)
+    ci_indexes = binom.ppf([left_quant, right_quant], sample_size + 1, q)
     bootstrap_confidence_interval = sample_sorted[[int(np.floor(ci_indexes[0])), int(np.ceil(ci_indexes[1]))]]
-    quantile_indices = binomial(sample_size + 1, quantile_of_interest, number_of_bootstrap_samples)
+    quantile_indices = binomial(sample_size + 1, q, number_of_bootstrap_samples)
     bootstrap_distribution = sample_sorted[quantile_indices]
 
     if plot:
         plt.title('Bootstrap')
-        plt.xlabel('q_' + str(quantile_of_interest))
+        plt.xlabel('q_' + str(q))
         plt.ylabel('Count')
         plt.hist(bootstrap_distribution, bins=100, density=True)
         plt.axvline(x=bootstrap_confidence_interval[0], color='red', linestyle='dashed', linewidth=2)
         plt.axvline(x=bootstrap_confidence_interval[1], color='red', linestyle='dashed', linewidth=2)
         plt.axvline(x=bootstrap_distribution.mean(), color='black', linestyle='dashed', linewidth=5)
         plt.show()
-    return np.quantile(sample_sorted, quantile_of_interest), bootstrap_confidence_interval, bootstrap_distribution
+    return np.quantile(sample_sorted, q), bootstrap_confidence_interval, bootstrap_distribution
