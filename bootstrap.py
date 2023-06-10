@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
-from scipy.stats import norm, binom
+from scipy.stats import norm, binom, dirichlet
 from numpy.random import normal, binomial
 from multiprocess import Pool, cpu_count
 from compare_functions import difference_of_mean, difference
@@ -723,3 +723,59 @@ def simple_poisson_bootstrap(control: np.ndarray, treatment: np.ndarray,
     bootstrap_difference_distribution = treatment_distribution - control_distribution
     p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
     return p_value
+
+
+def one_sample_bayesian_bootstrap(control: np.ndarray, number_of_bootstrap_samples: int = 10000,
+                                  bootstrap_conf_level: float = 0.95, progress_bar: bool = False,
+                                  plot: bool = False) -> Tuple[
+    float, np.ndarray, np.ndarray]:
+    """One sample bootstrap
+
+       If control.shape[0] > 10000, then multiprocessing will be used
+
+       Args:
+           control (ndarray): 1D array containing control sample
+           bootstrap_conf_level (float): Confidence level
+           number_of_bootstrap_samples (int): Number of bootstrap samples
+           sample_size (int): Sample size. Defaults to None. If None,
+               then control_sample_size and treatment_sample_size
+               wiil be equal to control.shape[0] and treatment.shape[0] respectively
+               Choose statistic function from compare_functions.py
+           plot (bool): If True, then bootstrap plot will be shown. Defaults to True
+           progress_bar (bool): If True, then progress bar will be shown. Defaults to False
+       Returns:
+           Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
+               bootstrap confidence interval, bootstrap difference distribution
+
+       """
+
+    bootstrap_distribution = np.zeros(shape=number_of_bootstrap_samples)
+    if progress_bar:
+        for i in tqdm(range(number_of_bootstrap_samples)):
+            dirichlet_weights = np.array((dirichlet([1] * control.shape[0])).rvs(1))
+            bootstrap_distribution[i] = (control * dirichlet_weights).sum(axis=1)
+    else:
+        for i in range(number_of_bootstrap_samples):
+            dirichlet_weights = np.array((dirichlet([1] * control.shape[0])).rvs(1))
+            bootstrap_distribution[i] = (control * dirichlet_weights).sum(axis=1)
+
+    bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_distribution,
+                                                                 bootstrap_conf_level)
+    bootstrap_difference_mean = bootstrap_distribution.mean()
+    p_value = estimate_p_value(bootstrap_distribution, number_of_bootstrap_samples)
+
+    if plot:
+        binwidth, _ = estimate_bin_params(bootstrap_distribution)
+        plt.hist(bootstrap_distribution,
+                 bins=np.arange(bootstrap_distribution.min(),
+                                bootstrap_distribution.max() + binwidth,
+                                binwidth))
+
+        plt.title('Bootstrap')
+        plt.xlabel('Mean')
+        plt.ylabel('Count')
+        plt.axvline(x=bootstrap_confidence_interval[0], color='red', linestyle='dashed', linewidth=2)
+        plt.axvline(x=bootstrap_confidence_interval[1], color='red', linestyle='dashed', linewidth=2)
+        plt.axvline(x=bootstrap_distribution.mean(), color='black', linestyle='dashed', linewidth=5)
+        plt.show()
+    return p_value, bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_distribution
