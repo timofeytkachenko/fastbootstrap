@@ -252,7 +252,7 @@ def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, qu
 
 
 def spotify_two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, number_of_bootstrap_samples: int = 10000,
-                                 sample_size: int = None, q1: float = 0.5, q2: float = 0.5,
+                                 sample_size: int = None, q1: float = 0.5, q2: float = None,
                                  statistic: Callable = difference,
                                  bootstrap_conf_level: float = 0.95,
                                  plot: bool = False) -> Tuple[float, float, np.ndarray, np.ndarray]:
@@ -287,6 +287,9 @@ def spotify_two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, num
         control_sample_size, treatment_sample_size = [sample_size] * 2
     else:
         control_sample_size, treatment_sample_size = control.shape[0], treatment.shape[0]
+
+    if q2 is None:
+        q2 = q1
 
     sorted_control = np.sort(control)
     sorted_treatment = np.sort(treatment)
