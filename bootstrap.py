@@ -131,8 +131,8 @@ def bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: 
     """
 
     def sample():
-        control_sample = np.random.choice(control, control_sample_size, replace=True)
-        treatment_sample = np.random.choice(treatment, treatment_sample_size, replace=True)
+        control_sample = control[generator.choice(control.shape[0], control_sample_size, replace=True)]
+        treatment_sample = treatment[generator.choice(treatment.shape[0], treatment_sample_size, replace=True)]
         return statistic(control_sample, treatment_sample)
 
     if sample_size:
@@ -140,6 +140,7 @@ def bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: 
     else:
         control_sample_size, treatment_sample_size = control.shape[0], treatment.shape[0]
 
+    generator = np.random.Generator(np.random.PCG64())
     if np.max([control.shape[0], treatment.shape[0]]) <= 10000:
         if progress_bar:
             bootstrap_difference_distribution = np.array([sample() for i in tqdm(range(number_of_bootstrap_samples))])
@@ -578,10 +579,11 @@ def estimate_quantile_of_mean(control: np.ndarray, bootstrap_conf_level: float =
     """
 
     def sample():
-        control_sample = np.random.choice(control, size=control.shape[0], replace=True)
+        control_sample = control[generator.choice(control.shape[0], size=control.shape[0], replace=True)]
         quantile_of_mean = percentileofscore(control_sample, np.mean(control_sample)) / 100
         return quantile_of_mean
 
+    generator = np.random.Generator(np.random.PCG64())
     if control.shape[0] > 10000:
         pool = Pool(cpu_count())
         quantile_array = np.array(pool.starmap(sample,
@@ -622,11 +624,12 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
     """
 
     def sample():
-        control_sample = np.random.choice(control, control_sample_size, replace=True)
+        control_sample = control[generator.choice(control.shape[0], size=control_sample_size, replace=True)]
         return statistic(control_sample)
 
     control_sample_size = sample_size if sample_size else control.shape[0]
 
+    generator = np.random.Generator(np.random.PCG64())
     if control.shape[0] <= 10000:
         if progress_bar:
             bootstrap_difference_distribution = np.array([sample() for i in tqdm(range(number_of_bootstrap_samples))])
