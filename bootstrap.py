@@ -6,13 +6,13 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from scipy.stats import norm, binom, dirichlet
 from numpy.random import normal, binomial
-from multiprocess import Pool, cpu_count
+from multiprocess import cpu_count
+from multiprocessing.pool import ThreadPool
 from compare_functions import difference_of_mean, difference
 from scipy.stats import percentileofscore
 from scipy.stats import ttest_ind
 from tqdm.auto import tqdm
 from typing import Tuple, Union, Callable
-from inspect import getfullargspec
 
 plt.style.use('ggplot')
 
@@ -147,7 +147,7 @@ def bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: 
         else:
             bootstrap_difference_distribution = np.array([sample() for i in range(number_of_bootstrap_samples)])
     else:
-        pool = Pool(cpu_count())
+        pool = ThreadPool(cpu_count())
         bootstrap_difference_distribution = np.array(
             pool.starmap(sample, [() for i in range(number_of_bootstrap_samples)]))
         pool.close()
@@ -210,7 +210,7 @@ def ctr_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_lev
         else:
             bootstrap_difference_distribution = np.array([sample() for i in range(number_of_bootstrap_samples)])
     else:
-        pool = Pool(cpu_count())
+        pool = ThreadPool(cpu_count())
         bootstrap_difference_distribution = np.array(
             pool.starmap(sample, [() for i in range(number_of_bootstrap_samples)]))
         pool.close()
@@ -388,7 +388,7 @@ def ab_test_simulation(control: np.ndarray, treatment: np.ndarray, number_of_exp
 
     control_size, treatment_size = control.shape[0], treatment.shape[0]
 
-    pool = Pool(cpu_count())
+    pool = ThreadPool(cpu_count())
     ab_p_values = np.array(pool.starmap(experiment, [() for i in range(number_of_experiments)]))
     pool.close()
 
@@ -585,7 +585,7 @@ def estimate_quantile_of_mean(control: np.ndarray, bootstrap_conf_level: float =
 
     generator = np.random.Generator(np.random.PCG64())
     if control.shape[0] > 10000:
-        pool = Pool(cpu_count())
+        pool = ThreadPool(cpu_count())
         quantile_array = np.array(pool.starmap(sample,
                                                [() for i in range(number_of_bootstrap_samples)]))
         pool.close()
@@ -636,7 +636,7 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
         else:
             bootstrap_difference_distribution = np.array([sample() for i in range(number_of_bootstrap_samples)])
     else:
-        pool = Pool(cpu_count())
+        pool = ThreadPool(cpu_count())
         bootstrap_difference_distribution = np.array(
             pool.starmap(sample, [() for i in range(number_of_bootstrap_samples)]))
         pool.close()
