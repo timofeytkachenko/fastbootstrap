@@ -8,7 +8,7 @@ from scipy.stats import norm, binom, dirichlet
 from numpy.random import normal, binomial
 from multiprocess import cpu_count
 from multiprocessing.pool import ThreadPool
-from compare_functions import difference_of_mean, difference
+from bootstrap.compare_functions import difference_of_mean, difference
 from scipy.stats import percentileofscore
 from scipy.stats import ttest_ind
 from tqdm.auto import tqdm
@@ -618,7 +618,7 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
         progress_bar (bool): If True, then progress bar will be shown. Defaults to False
     Returns:
-        Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
+        Tuple[float, ndarray, ndarray]: Tuple containing difference distribution statistic,
             bootstrap confidence interval, bootstrap difference distribution
 
     """
@@ -644,7 +644,6 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
     bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_difference_distribution,
                                                                  bootstrap_conf_level)
     bootstrap_difference_mean = bootstrap_difference_distribution.mean()
-    p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
 
     if plot:
         binwidth, _ = estimate_bin_params(bootstrap_difference_distribution)
@@ -660,7 +659,7 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
         plt.axvline(x=bootstrap_confidence_interval[1], color='red', linestyle='dashed', linewidth=2)
         plt.axvline(x=bootstrap_difference_distribution.mean(), color='black', linestyle='dashed', linewidth=5)
         plt.show()
-    return p_value, bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_difference_distribution
+    return bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_difference_distribution
 
 
 def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, q: float = 0.5,
@@ -750,7 +749,7 @@ def one_sample_bayesian_bootstrap(control: np.ndarray, number_of_bootstrap_sampl
            plot (bool): If True, then bootstrap plot will be shown. Defaults to True
            progress_bar (bool): If True, then progress bar will be shown. Defaults to False
        Returns:
-           Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
+           Tuple[float, ndarray, ndarray]: Tuple containing difference distribution statistic,
                bootstrap confidence interval, bootstrap difference distribution
 
        """
@@ -768,7 +767,6 @@ def one_sample_bayesian_bootstrap(control: np.ndarray, number_of_bootstrap_sampl
     bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_distribution,
                                                                  bootstrap_conf_level)
     bootstrap_difference_mean = bootstrap_distribution.mean()
-    p_value = estimate_p_value(bootstrap_distribution, number_of_bootstrap_samples)
 
     if plot:
         binwidth, _ = estimate_bin_params(bootstrap_distribution)
@@ -784,4 +782,4 @@ def one_sample_bayesian_bootstrap(control: np.ndarray, number_of_bootstrap_sampl
         plt.axvline(x=bootstrap_confidence_interval[1], color='red', linestyle='dashed', linewidth=2)
         plt.axvline(x=bootstrap_distribution.mean(), color='black', linestyle='dashed', linewidth=5)
         plt.show()
-    return p_value, bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_distribution
+    return bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_distribution

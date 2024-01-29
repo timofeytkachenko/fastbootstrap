@@ -1,9 +1,4 @@
 .idea/
 __pycache__/
 .ipynb_checkpoints/
-
-ab_data.csv
-ab_test.ipynb
-plot_export.ipynb
-
-/*.png
+.DS_Store
