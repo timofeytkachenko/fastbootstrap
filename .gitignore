@@ -1,4 +1,8 @@
 .idea/
 __pycache__/
 .ipynb_checkpoints/
+./cuped
 .DS_Store
+
+cuped_experiment.ipynb
+outliers_test.ipynb

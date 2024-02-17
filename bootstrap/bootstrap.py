@@ -312,61 +312,6 @@ def spotify_two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, num
     return p_value, bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_difference_distribution
 
 
-def poisson_bootstrap(control: np.ndarray, treatment: np.ndarray, number_of_bootstrap_samples: int = 10000) -> float:
-    """Poisson-Bootstrap
-
-    Sample size should be equal for control and treatment samples
-
-    Args:
-        control (ndarray): 1D array containing control sample
-        treatment (ndarray): 1D array containing treatment sample
-        number_of_bootstrap_samples (int): Number of bootstrap samples
-
-    Returns:
-        float: p-value
-
-    """
-
-    poisson_bootstraps = scipy.stats.poisson(1).rvs((number_of_bootstrap_samples, control.shape[0])).astype(np.int64)
-
-    values_1 = np.matmul(control, poisson_bootstraps.T)
-    values_2 = np.matmul(treatment, poisson_bootstraps.T)
-
-    difference = values_2 - values_1
-    p_value = estimate_p_value(difference, number_of_bootstrap_samples)
-    return p_value
-
-
-def ctr_poisson_bootstrap(ctrs_1: np.ndarray, weights_1: np.ndarray, ctrs_2: np.ndarray, weights_2: np.ndarray,
-                          number_of_bootstrap_samples: int = 10000) -> float:
-    """CTR Poisson-Bootstrap for global CTRs
-
-    Args:
-        ctrs_1 (ndarray): 1D array containing control CTRs
-        weights_1 (ndarray): 1D array containing control weights
-        ctrs_2 (ndarray): 1D array containing treatment CTRs
-        weights_2 (ndarray): 1D array containing treatment weights
-        number_of_bootstrap_samples (int): Number of bootstrap samples
-
-    Returns:
-        float: p-value
-
-    """
-    poisson_bootstraps = scipy.stats.poisson(1).rvs(size=(number_of_bootstrap_samples, ctrs_1.shape[0])).astype(
-        np.int64)
-
-    values_1 = np.matmul(ctrs_1 * weights_1, poisson_bootstraps.T)
-    weights_1 = np.matmul(weights_1, poisson_bootstraps.T)
-
-    values_2 = np.matmul(ctrs_2 * weights_2, poisson_bootstraps.T)
-    weights_2 = np.matmul(weights_2, poisson_bootstraps.T)
-
-    difference = values_2 / weights_2 - values_1 / weights_1
-
-    p_value = estimate_p_value(difference, number_of_bootstrap_samples)
-    return p_value
-
-
 def ab_test_simulation(control: np.ndarray, treatment: np.ndarray, number_of_experiments: int = 2000,
                        stat_test: Callable = ttest_ind) -> Tuple[np.ndarray, float, float]:
     """A/B test simulation
@@ -437,7 +382,8 @@ def plot_summary(aa_p_values: np.ndarray, ab_p_values: np.ndarray) -> None:
 
 
 def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: int = 20, q1: float = 0.01,
-                            q2: float = 0.99, statistic: Callable = difference) -> None:
+                            q2: float = 0.99, alpha: float = 0.05, statistic: Callable = difference,
+                            correction: str = 'bh') -> None:
     """
 
     Args:
@@ -446,16 +392,25 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
         n_step (int): Number of quantiles to compare. Defaults to 20
         q1 (float): Lower quantile. Defaults to 0.025
         q2 (float): Upper quantile. Defaults to 0.975
+        alpha (float): Significance level. Defaults to 0.05
         statistic (Callable): Statistic function. Defaults to difference.
+        correction (str): Correction method. Defaults to 'bh'
 
     """
     quantiles_to_compare = np.linspace(q1, q2, n_step)
-    statistics = list()
-    for quantile in quantiles_to_compare:
+    statistics, correction_list = list(), list()
+    for i, quantile in enumerate(quantiles_to_compare):
+        match correction:
+            case 'bonferroni':
+                corr = alpha / n_step
+            case 'bh':
+                corr = (alpha * (i + 1)) / n_step
+        correction_list.append(corr)
         p_value, bootstrap_mean, bootstrap_confidence_interval, _ = spotify_two_sample_bootstrap(control, treatment,
                                                                                                  q1=quantile,
                                                                                                  q2=quantile,
-                                                                                                 statistic=statistic)
+                                                                                                 statistic=statistic,
+                                                                                                 bootstrap_conf_level=1 - corr)
         statistics.append([p_value, bootstrap_mean, bootstrap_confidence_interval[0], bootstrap_confidence_interval[1]])
     statistics = np.array(statistics)
 
@@ -705,8 +660,8 @@ def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, q:
     return np.quantile(sample_sorted, q), bootstrap_confidence_interval, bootstrap_distribution
 
 
-def simple_poisson_bootstrap(control: np.ndarray, treatment: np.ndarray,
-                             number_of_bootstrap_samples: int = 10000) -> int:
+def poisson_bootstrap(control: np.ndarray, treatment: np.ndarray,
+                      number_of_bootstrap_samples: int = 10000) -> int:
     """Simple Poisson Bootstrap
 
     Args:
@@ -728,58 +683,3 @@ def simple_poisson_bootstrap(control: np.ndarray, treatment: np.ndarray,
     bootstrap_difference_distribution = treatment_distribution - control_distribution
     p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
     return p_value
-
-
-def one_sample_bayesian_bootstrap(control: np.ndarray, number_of_bootstrap_samples: int = 10000,
-                                  bootstrap_conf_level: float = 0.95, progress_bar: bool = False,
-                                  plot: bool = False) -> Tuple[
-    float, np.ndarray, np.ndarray]:
-    """One sample bootstrap
-
-       If control.shape[0] > 10000, then multiprocessing will be used
-
-       Args:
-           control (ndarray): 1D array containing control sample
-           bootstrap_conf_level (float): Confidence level
-           number_of_bootstrap_samples (int): Number of bootstrap samples
-           sample_size (int): Sample size. Defaults to None. If None,
-               then control_sample_size and treatment_sample_size
-               wiil be equal to control.shape[0] and treatment.shape[0] respectively
-               Choose statistic function from compare_functions.py
-           plot (bool): If True, then bootstrap plot will be shown. Defaults to True
-           progress_bar (bool): If True, then progress bar will be shown. Defaults to False
-       Returns:
-           Tuple[float, ndarray, ndarray]: Tuple containing difference distribution statistic,
-               bootstrap confidence interval, bootstrap difference distribution
-
-       """
-
-    bootstrap_distribution = np.zeros(shape=number_of_bootstrap_samples)
-    if progress_bar:
-        for i in tqdm(range(number_of_bootstrap_samples)):
-            dirichlet_weights = np.array((dirichlet([1] * control.shape[0])).rvs(1))
-            bootstrap_distribution[i] = (control * dirichlet_weights).sum(axis=1)
-    else:
-        for i in range(number_of_bootstrap_samples):
-            dirichlet_weights = np.array((dirichlet([1] * control.shape[0])).rvs(1))
-            bootstrap_distribution[i] = (control * dirichlet_weights).sum(axis=1)
-
-    bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_distribution,
-                                                                 bootstrap_conf_level)
-    bootstrap_difference_mean = bootstrap_distribution.mean()
-
-    if plot:
-        binwidth, _ = estimate_bin_params(bootstrap_distribution)
-        plt.hist(bootstrap_distribution,
-                 bins=np.arange(bootstrap_distribution.min(),
-                                bootstrap_distribution.max() + binwidth,
-                                binwidth))
-
-        plt.title('Bootstrap')
-        plt.xlabel('Mean')
-        plt.ylabel('Count')
-        plt.axvline(x=bootstrap_confidence_interval[0], color='red', linestyle='dashed', linewidth=2)
-        plt.axvline(x=bootstrap_confidence_interval[1], color='red', linestyle='dashed', linewidth=2)
-        plt.axvline(x=bootstrap_distribution.mean(), color='black', linestyle='dashed', linewidth=5)
-        plt.show()
-    return bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_distribution
