@@ -16,7 +16,7 @@ setup(
     long_description_content_type='text/markdown',
     url='https://github.com/timofeytkachenko/fastbootstrap',
     packages=find_packages(),
-    install_requires=['jupyter==1.0.0'
+    install_requires=['jupyter==1.0.0',
                       'ipython==8.12.0',
                       'matplotlib==3.7.1',
                       'plotly==5.14.1',
