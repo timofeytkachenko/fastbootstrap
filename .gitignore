@@ -1,7 +1,7 @@
 .idea/
 __pycache__/
 .ipynb_checkpoints/
-./cuped
+/cuped
 .DS_Store
 
 cuped_experiment.ipynb
