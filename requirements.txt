@@ -8,4 +8,3 @@ scipy==1.10.1
 pandas==1.5.3
 tqdm==4.65.0
 multiprocess==0.70.14
-kaleido==0.2.1
