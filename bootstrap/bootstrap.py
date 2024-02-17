@@ -673,9 +673,11 @@ def poisson_bootstrap(control: np.ndarray, treatment: np.ndarray,
         int: p-value
 
     """
+
+    sample_size = np.min([control.shape[0], treatment.shape[0]])
     control_distribution = np.zeros(shape=number_of_bootstrap_samples)
     treatment_distribution = np.zeros(shape=number_of_bootstrap_samples)
-    for control_item, treatment_item in zip(control, treatment):
+    for control_item, treatment_item in zip(control[:sample_size], treatment[:sample_size]):
         weights = np.random.poisson(1, number_of_bootstrap_samples)
         control_distribution += control_item * weights
         treatment_distribution += treatment_item * weights
