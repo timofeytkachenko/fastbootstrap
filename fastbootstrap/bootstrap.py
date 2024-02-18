@@ -382,7 +382,7 @@ def plot_summary(aa_p_values: np.ndarray, ab_p_values: np.ndarray) -> None:
 
 
 def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: int = 20, q1: float = 0.01,
-                            q2: float = 0.99, alpha: float = 0.05, statistic: Callable = difference,
+                            q2: float = 0.99, bootstrap_conf_level: float = 0.95, statistic: Callable = difference,
                             correction: str = 'bh') -> None:
     """
 
@@ -392,7 +392,7 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
         n_step (int): Number of quantiles to compare. Defaults to 20
         q1 (float): Lower quantile. Defaults to 0.025
         q2 (float): Upper quantile. Defaults to 0.975
-        alpha (float): Significance level. Defaults to 0.05
+        bootstrap_conf_level (float): Confidence level. Defaults to 0.95
         statistic (Callable): Statistic function. Defaults to difference.
         correction (str): Correction method. Defaults to 'bh'
 
@@ -402,9 +402,9 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
     for i, quantile in enumerate(quantiles_to_compare):
         match correction:
             case 'bonferroni':
-                corr = alpha / n_step
+                corr = (1 - bootstrap_conf_level) / n_step
             case 'bh':
-                corr = (alpha * (i + 1)) / n_step
+                corr = ((1 - bootstrap_conf_level) * (i + 1)) / n_step
         correction_list.append(corr)
         p_value, bootstrap_mean, bootstrap_confidence_interval, _ = spotify_two_sample_bootstrap(control, treatment,
                                                                                                  q1=quantile,
