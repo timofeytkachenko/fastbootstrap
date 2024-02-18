@@ -9,14 +9,10 @@ from numpy.random import binomial
 from multiprocessing import cpu_count
 from multiprocessing.pool import ThreadPool
 from .compare_functions import difference_of_mean, difference
-from scipy.stats import percentileofscore
 from scipy.stats import ttest_ind
-from tqdm.auto import tqdm
 from typing import Tuple, Union, Callable
 
 plt.style.use('ggplot')
-
-colors = {'False': 'red', 'True': 'black'}
 
 
 def estimate_confidence_interval(distribution: np.ndarray, bootstrap_conf_level: float = 0.95) -> np.ndarray:
@@ -71,17 +67,21 @@ def estimate_bin_params(sample: object) -> Tuple[float, int]:
 
 
 def bootstrap_plot(bootstrap_difference_distribution: np.ndarray, bootstrap_confidence_interval: np.ndarray,
-                   statistic: Union[str, Callable] = None) -> None:
+                   statistic: Union[str, Callable] = None, title: str = 'Bootstrap',
+                   two_sample_plot: bool = True) -> None:
     """Bootstrap distribution plot
 
     Args:
         bootstrap_difference_distribution (ndarray): 1D array containing bootstrap difference distribution
         bootstrap_confidence_interval (ndarray): 1D array containing bootstrap confidence interval
         statistic (Union[str, Callable], optional): Statistic name or function. Defaults to None.
-        If None, then 'Stat' will be used as xlabel; if the statistic is str, then it will be used as xlabel,
-        else if statistic is function then formated function name will be used as xlabel
-
+            If None, then 'Stat' will be used as xlabel; if the statistic is str, then it will be used as xlabel,
+            else if statistic is function then formated function name will be used as xlabel
+        title (str): Plot title. Defaults to 'Bootstrap'
+        two_sample_plot (bool): If True, then two-sample bootstrap plot will be shown,
+            it means that zero x-line will be added. Defaults to True
     """
+
     if isinstance(statistic, str):
         xlabel = statistic
     elif hasattr(statistic, '__call__'):
@@ -93,20 +93,21 @@ def bootstrap_plot(bootstrap_difference_distribution: np.ndarray, bootstrap_conf
     plt.hist(bootstrap_difference_distribution,
              bins=np.arange(bootstrap_difference_distribution.min(), bootstrap_difference_distribution.max() + binwidth,
                             binwidth))
-    plt.title('Bootstrap')
+    plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel('Count')
     plt.axvline(x=bootstrap_confidence_interval[0], color='red', linestyle='dashed', linewidth=2)
     plt.axvline(x=bootstrap_confidence_interval[1], color='red', linestyle='dashed', linewidth=2)
     plt.axvline(x=bootstrap_difference_distribution.mean(), color='black', linestyle='dashed', linewidth=5)
-    plt.axvline(x=0, color='white', linewidth=5)
+    if two_sample_plot:
+        plt.axvline(x=0, color='white', linewidth=5)
     plt.show()
 
 
 def two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: float = 0.95,
-              number_of_bootstrap_samples: int = 10000,
-              sample_size: int = None,
-              statistic: Callable = difference_of_mean, plot: bool = False) -> Tuple[
+                         number_of_bootstrap_samples: int = 10000,
+                         sample_size: int = None,
+                         statistic: Callable = difference_of_mean, plot: bool = False) -> Tuple[
     float, float, np.ndarray, np.ndarray]:
     """Two-sample bootstrap
 
@@ -124,7 +125,6 @@ def two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_c
     Returns:
         Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
             bootstrap confidence interval, bootstrap difference distribution
-
     """
 
     def sample():
@@ -178,8 +178,7 @@ def ctr_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_lev
         Returns:
             Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
                 bootstrap confidence interval, bootstrap difference distribution
-
-        """
+    """
 
     def sample():
         control_sample = control.sample(control_sample_size, replace=True)
@@ -206,35 +205,6 @@ def ctr_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_lev
     if plot:
         bootstrap_plot(bootstrap_difference_distribution, bootstrap_confidence_interval, statistic='CTR Difference')
     return p_value, bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_difference_distribution
-
-
-def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, quantile_of_interest: float = 0.5,
-                                 bootstrap_conf_level: float = 0.95) -> Tuple[float, np.ndarray]:
-    """One-sample Spotify-Bootstrap
-
-    Mårten Schultzberg and Sebastian Ankargren. “Resampling-free bootstrap inference for quantiles.”
-    arXiv e-prints, art. arXiv:2202.10992, (2022). https://arxiv.org/abs/2202.10992
-
-    Args:
-        sample (ndarray): 1D array containing sample
-        sample_size (int): sample size. Defaults to None
-        quantile_of_interest (float): Quantile of interest. Defaults to 0.5
-        bootstrap_conf_level (float): Confidence level. Defaults to 0.95
-
-    Returns:
-        Tuple[float, ndarray]: Tuple containing quantile of interest mean value and bootstrap confidence interval
-
-    """
-
-    if not sample_size:
-        sample_size = sample.shape[0]
-
-    sample_sorted = np.sort(sample)
-    left_quant = (1 - bootstrap_conf_level) / 2
-    right_quant = 1 - (1 - bootstrap_conf_level) / 2
-    ci_indexes = binom.ppf([left_quant, right_quant], sample_size + 1, quantile_of_interest)
-    bootstrap_confidence_interval = sample_sorted[[int(np.floor(ci_indexes[0])), int(np.ceil(ci_indexes[1]))]]
-    return np.quantile(sample_sorted, quantile_of_interest), bootstrap_confidence_interval
 
 
 def spotify_two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, number_of_bootstrap_samples: int = 10000,
@@ -293,7 +263,6 @@ def spotify_two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, num
     p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
     if plot:
         bootstrap_plot(bootstrap_difference_distribution, bootstrap_confidence_interval, statistic=statistic)
-
     return p_value, bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_difference_distribution
 
 
@@ -369,7 +338,7 @@ def plot_summary(aa_p_values: np.ndarray, ab_p_values: np.ndarray) -> None:
 def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: int = 20, q1: float = 0.01,
                             q2: float = 0.99, bootstrap_conf_level: float = 0.95, statistic: Callable = difference,
                             correction: str = 'bh') -> None:
-    """
+    """Quantile Bootstrap Plot
 
     Args:
         control (ndarray): 1D array containing control sample
@@ -380,8 +349,8 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
         bootstrap_conf_level (float): Confidence level. Defaults to 0.95
         statistic (Callable): Statistic function. Defaults to difference.
         correction (str): Correction method. Defaults to 'bh'
-
     """
+
     quantiles_to_compare = np.linspace(q1, q2, n_step)
     statistics, correction_list = list(), list()
     for i, quantile in enumerate(quantiles_to_compare):
@@ -550,11 +519,8 @@ def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, q:
         bootstrap_conf_level (float): Confidence level. Defaults to 0.95
         number_of_bootstrap_samples (int): Number of bootstrap samples. Defaults to 10000
         plot (bool): Plot histogram of bootstrap distribution. Defaults to False
-
-
     Returns:
         Tuple[float, ndarray, ndarray]: Tuple containing quantile of interest, bootstrap confidence interval and bootstrap distribution
-
     """
 
     if not sample_size:
@@ -569,14 +535,9 @@ def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, q:
     bootstrap_distribution = sample_sorted[quantile_indices]
 
     if plot:
-        plt.title('Bootstrap')
-        plt.xlabel('q_' + str(q))
-        plt.ylabel('Count')
-        plt.hist(bootstrap_distribution, bins=100, density=True)
-        plt.axvline(x=bootstrap_confidence_interval[0], color='red', linestyle='dashed', linewidth=2)
-        plt.axvline(x=bootstrap_confidence_interval[1], color='red', linestyle='dashed', linewidth=2)
-        plt.axvline(x=bootstrap_distribution.mean(), color='black', linestyle='dashed', linewidth=5)
-        plt.show()
+        statistic = f'Quantile_{q}'
+        bootstrap_plot(bootstrap_distribution, bootstrap_confidence_interval, statistic=statistic,
+                       two_sample_plot=False)
     return np.quantile(sample_sorted, q), bootstrap_confidence_interval, bootstrap_distribution
 
 
@@ -588,10 +549,8 @@ def poisson_bootstrap(control: np.ndarray, treatment: np.ndarray,
         control (ndarray): 1D array containing control sample
         treatment (ndarray): 1D array containing treatment sample
         number_of_bootstrap_samples (int): Number of bootstrap samples. Defaults to 10000
-
     Returns:
         float: p-value
-
     """
 
     sample_size = np.min([control.shape[0], treatment.shape[0]])
@@ -608,13 +567,11 @@ def poisson_bootstrap(control: np.ndarray, treatment: np.ndarray,
 
 
 def one_sample_tbootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95,
-               number_of_bootstrap_samples: int = 10000,
-               sample_size: int = None,
-               statistic: Callable = np.mean, plot: bool = False) -> Tuple[
+                          number_of_bootstrap_samples: int = 10000,
+                          sample_size: int = None,
+                          statistic: Callable = np.mean, plot: bool = False) -> Tuple[
     float, float, np.ndarray, np.ndarray]:
     """One sample Studentized t-Bootstrap
-
-    If control.shape[0] > 10000, then multiprocessing will be used
 
     Args:
         control (ndarray): 1D array containing control sample
@@ -629,7 +586,6 @@ def one_sample_tbootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.9
     Returns:
         Tuple[float, ndarray, ndarray]: Tuple containing difference distribution statistic,
             bootstrap confidence interval, bootstrap difference distribution
-
     """
 
     def sample():
@@ -647,27 +603,17 @@ def one_sample_tbootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.9
     bootstrap_distribution = bootstrap_stats[:, 0]
     bootstrap_std_distribution = bootstrap_stats[:, 1]
     sample_stat = control.mean()
-    bootstrap_sd = bootstrap_distribution.std()
+    bootstrap_distribution_std = bootstrap_distribution.std()
     bootstrap_std_errors = bootstrap_std_distribution / np.sqrt(control_sample_size)
     t_statistics = (bootstrap_distribution - sample_stat) / bootstrap_std_errors
     lower, upper = estimate_confidence_interval(t_statistics, bootstrap_conf_level)
-    bootstrap_confidence_interval = np.array([sample_stat - bootstrap_sd * upper, sample_stat - bootstrap_sd * lower])
+    bootstrap_confidence_interval = np.array(
+        [sample_stat - bootstrap_distribution_std * upper, sample_stat - bootstrap_distribution_std * lower])
     bootstrap_distribution_mean = bootstrap_distribution.mean()
 
     if plot:
-        binwidth, _ = estimate_bin_params(bootstrap_distribution)
-        plt.hist(bootstrap_distribution,
-                 bins=np.arange(bootstrap_distribution.min(),
-                                bootstrap_distribution.max() + binwidth,
-                                binwidth))
-        xlabel = ' '.join([i.capitalize() for i in statistic.__name__.split('_')])
-        plt.title('tBootstrap')
-        plt.xlabel(xlabel)
-        plt.ylabel('Count')
-        plt.axvline(x=bootstrap_confidence_interval[0], color='red', linestyle='dashed', linewidth=2)
-        plt.axvline(x=bootstrap_confidence_interval[1], color='red', linestyle='dashed', linewidth=2)
-        plt.axvline(x=bootstrap_distribution_mean, color='black', linestyle='dashed', linewidth=5)
-        plt.show()
+        bootstrap_plot(bootstrap_distribution, bootstrap_confidence_interval, statistic=statistic, title='t-Bootstrap',
+                       two_sample_plot=False)
     return bootstrap_distribution_mean, bootstrap_confidence_interval, bootstrap_distribution
 
 
@@ -698,7 +644,7 @@ def two_sample_tbootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_
     def sample():
         control_sample = control[generator.choice(control.shape[0], sample_size, replace=True)]
         treatment_sample = treatment[generator.choice(treatment.shape[0], sample_size, replace=True)]
-        return statistic(control_sample, treatment_sample), np.std(treatment_sample-control_sample)
+        return statistic(control_sample, treatment_sample), np.std(treatment_sample - control_sample)
 
     if sample_size is None:
         sample_size = np.min([control.shape[0], treatment.shape[0]])
@@ -711,14 +657,16 @@ def two_sample_tbootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_
     bootstrap_difference_distribution = bootstrap_stats[:, 0]
     bootstrap_difference_std_distribution = bootstrap_stats[:, 1]
     sample_stat = treatment.mean() - control.mean()
-    bootstrap_sd = bootstrap_difference_distribution.std()
+    bootstrap_difference_distribution_std = bootstrap_difference_distribution.std()
     bootstrap_std_errors = bootstrap_difference_std_distribution / np.sqrt(sample_size)
     t_statistics = (bootstrap_difference_distribution - sample_stat) / bootstrap_std_errors
     lower, upper = estimate_confidence_interval(t_statistics, bootstrap_conf_level)
-    bootstrap_confidence_interval = np.array([sample_stat - bootstrap_sd * upper, sample_stat - bootstrap_sd * lower])
+    bootstrap_confidence_interval = np.array([sample_stat - bootstrap_difference_distribution_std * upper,
+                                              sample_stat - bootstrap_difference_distribution_std * lower])
     bootstrap_difference_distribution_mean = bootstrap_difference_distribution.mean()
     p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
 
     if plot:
-        bootstrap_plot(bootstrap_difference_distribution, bootstrap_confidence_interval, statistic=statistic)
+        bootstrap_plot(bootstrap_difference_distribution, bootstrap_confidence_interval, statistic=statistic,
+                       title='t-Bootstrap')
     return p_value, bootstrap_difference_distribution_mean, bootstrap_confidence_interval, bootstrap_difference_distribution
