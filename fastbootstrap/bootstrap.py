@@ -58,6 +58,7 @@ def estimate_bin_params(sample: object) -> Tuple[float, int]:
         tuple(float, int): Tuple containing bin width and bin count
 
     """
+
     q1 = np.quantile(sample, 0.25)
     q3 = np.quantile(sample, 0.75)
     iqr = q3 - q1
@@ -80,6 +81,7 @@ def bootstrap_plot(bootstrap_difference_distribution: np.ndarray, bootstrap_conf
         title (str): Plot title. Defaults to 'Bootstrap'
         two_sample_plot (bool): If True, then two-sample bootstrap plot will be shown,
             it means that zero x-line will be added. Defaults to True
+
     """
 
     if isinstance(statistic, str):
@@ -122,9 +124,11 @@ def two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_c
         statistic (Callable): Statistic function. Defaults to difference_of_mean.
             Choose statistic function from compare_functions.py
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
+
     Returns:
         Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
             bootstrap confidence interval, bootstrap difference distribution
+
     """
 
     def sample():
@@ -159,25 +163,27 @@ def ctr_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_lev
     float, float, np.ndarray, np.ndarray]:
     """Two-sample CTR-Bootstrap
 
-        In every sample global CTR will be used to difference calculation:
-        global_ctr_control_sample = control_sample.clicks.sum() / control_sample.views.sum()
-        global_ctr_treatment_sample = treatment_sample.clicks.sum() / treatment_sample.views.sum()
-        crt_difference = global_ctr_treatment_sample - global_ctr_control_sample
+    In every sample global CTR will be used to difference calculation:
+    global_ctr_control_sample = control_sample.clicks.sum() / control_sample.views.sum()
+    global_ctr_treatment_sample = treatment_sample.clicks.sum() / treatment_sample.views.sum()
+    crt_difference = global_ctr_treatment_sample - global_ctr_control_sample
 
-        Args:
-            control (ndarray): 1D array containing control sample
-            treatment (ndarray): 1D array containing treatment sample
-            bootstrap_conf_level (float): Confidence level
-            number_of_bootstrap_samples (int): Number of bootstrap samples
-            sample_size (int): Sample size. Defaults to None. If None,
-                then control_sample_size and treatment_sample_size
-                wiil be equal to control.shape[0] and treatment.shape[0] respectively
-            statistic (Callable): Statistic function. Defaults to difference_of_mean.
-                Choose statistic function from compare_functions.py
-            plot (bool): If True, then bootstrap plot will be shown. Defaults to True
-        Returns:
-            Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
-                bootstrap confidence interval, bootstrap difference distribution
+    Args:
+        control (ndarray): 1D array containing control sample
+        treatment (ndarray): 1D array containing treatment sample
+        bootstrap_conf_level (float): Confidence level
+        number_of_bootstrap_samples (int): Number of bootstrap samples
+        sample_size (int): Sample size. Defaults to None. If None,
+            then control_sample_size and treatment_sample_size
+            wiil be equal to control.shape[0] and treatment.shape[0] respectively
+        statistic (Callable): Statistic function. Defaults to difference_of_mean.
+            Choose statistic function from compare_functions.py
+        plot (bool): If True, then bootstrap plot will be shown. Defaults to True
+
+    Returns:
+        Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
+            bootstrap confidence interval, bootstrap difference distribution
+
     """
 
     def sample():
@@ -233,6 +239,7 @@ def spotify_two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, num
         statistic (Callable): Statistic function. Defaults to difference.
             Choose statistic function from compare_functions.py
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
+
     Returns:
         Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
             bootstrap confidence interval, bootstrap difference distribution
@@ -298,7 +305,7 @@ def ab_test_simulation(control: np.ndarray, treatment: np.ndarray, number_of_exp
     return ab_p_values, test_power, auc
 
 
-def plot_summary(aa_p_values: np.ndarray, ab_p_values: np.ndarray) -> None:
+def plot_summary(aa_p_values: np.ndarray, ab_p_values: np.ndarray):
     """Plot summary for A/A and A/B testing
 
     Args:
@@ -349,6 +356,7 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
         bootstrap_conf_level (float): Confidence level. Defaults to 0.95
         statistic (Callable): Statistic function. Defaults to difference.
         correction (str): Correction method. Defaults to 'bh'
+
     """
 
     quantiles_to_compare = np.linspace(q1, q2, n_step)
@@ -435,6 +443,7 @@ def plot_cdf(p_values: np.ndarray, label: str, ax: Axes, linewidth: float = 3) -
         label (str): Label for the plot
         ax (Axes): Axes object to plot on
         linewidth (float): Linewidth for the plot. Defaults to 3
+
     """
 
     sorted_p_values = np.sort(p_values)
@@ -465,6 +474,7 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
         statistic (Callable): Statistic function. Defaults to difference_of_mean.
             Choose statistic function from compare_functions.py
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
+
     Returns:
         Tuple[float, ndarray, ndarray]: Tuple containing difference distribution statistic,
             bootstrap confidence interval, bootstrap difference distribution
@@ -519,8 +529,10 @@ def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, q:
         bootstrap_conf_level (float): Confidence level. Defaults to 0.95
         number_of_bootstrap_samples (int): Number of bootstrap samples. Defaults to 10000
         plot (bool): Plot histogram of bootstrap distribution. Defaults to False
+
     Returns:
         Tuple[float, ndarray, ndarray]: Tuple containing quantile of interest, bootstrap confidence interval and bootstrap distribution
+
     """
 
     if not sample_size:
@@ -549,8 +561,10 @@ def poisson_bootstrap(control: np.ndarray, treatment: np.ndarray,
         control (ndarray): 1D array containing control sample
         treatment (ndarray): 1D array containing treatment sample
         number_of_bootstrap_samples (int): Number of bootstrap samples. Defaults to 10000
+
     Returns:
         float: p-value
+
     """
 
     sample_size = np.min([control.shape[0], treatment.shape[0]])
@@ -583,9 +597,11 @@ def one_sample_tbootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.9
         statistic (Callable): Statistic function. Defaults to difference_of_mean.
             Choose statistic function from compare_functions.py
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
+
     Returns:
         Tuple[float, ndarray, ndarray]: Tuple containing difference distribution statistic,
             bootstrap confidence interval, bootstrap difference distribution
+
     """
 
     def sample():
@@ -635,6 +651,7 @@ def two_sample_tbootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_
         statistic (Callable): Statistic function. Defaults to difference_of_mean.
             Choose statistic function from compare_functions.py
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
+
     Returns:
         Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
             bootstrap confidence interval, bootstrap difference distribution
