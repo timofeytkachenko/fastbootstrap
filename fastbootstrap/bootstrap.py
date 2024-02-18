@@ -106,11 +106,9 @@ def bootstrap_plot(bootstrap_difference_distribution: np.ndarray, bootstrap_conf
 def bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: float = 0.95,
               number_of_bootstrap_samples: int = 10000,
               sample_size: int = None,
-              statistic: Callable = difference_of_mean, plot: bool = False, progress_bar: bool = False) -> Tuple[
+              statistic: Callable = difference_of_mean, plot: bool = False) -> Tuple[
     float, float, np.ndarray, np.ndarray]:
     """Two-sample bootstrap
-
-    If max([control.shape[0], treatment.shape[0]) > 10000, then multiprocessing will be used
 
     Args:
         control (ndarray): 1D array containing control sample
@@ -123,7 +121,6 @@ def bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: 
         statistic (Callable): Statistic function. Defaults to difference_of_mean.
             Choose statistic function from compare_functions.py
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
-        progress_bar (bool): If True, then progress bar will be shown. Defaults to False
     Returns:
         Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
             bootstrap confidence interval, bootstrap difference distribution
@@ -141,16 +138,10 @@ def bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: 
         control_sample_size, treatment_sample_size = control.shape[0], treatment.shape[0]
 
     generator = np.random.Generator(np.random.PCG64())
-    if np.max([control.shape[0], treatment.shape[0]]) <= 10000:
-        if progress_bar:
-            bootstrap_difference_distribution = np.array([sample() for i in tqdm(range(number_of_bootstrap_samples))])
-        else:
-            bootstrap_difference_distribution = np.array([sample() for i in range(number_of_bootstrap_samples)])
-    else:
-        pool = ThreadPool(cpu_count())
-        bootstrap_difference_distribution = np.array(
-            pool.starmap(sample, [() for i in range(number_of_bootstrap_samples)]))
-        pool.close()
+    pool = ThreadPool(cpu_count())
+    bootstrap_difference_distribution = np.array(
+        pool.starmap(sample, [() for i in range(number_of_bootstrap_samples)]))
+    pool.close()
 
     bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_difference_distribution,
                                                                  bootstrap_conf_level)
@@ -164,11 +155,10 @@ def bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: 
 
 def ctr_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: float = 0.95,
                   number_of_bootstrap_samples: int = 10000,
-                  sample_size: int = None, plot: bool = False, progress_bar: bool = False) -> Tuple[
+                  sample_size: int = None, plot: bool = False) -> Tuple[
     float, float, np.ndarray, np.ndarray]:
     """Two-sample CTR-Bootstrap
 
-        If max([control.shape[0], treatment.shape[0]) > 10000, then multiprocessing will be used.
         In every sample global CTR will be used to difference calculation:
         global_ctr_control_sample = control_sample.clicks.sum() / control_sample.views.sum()
         global_ctr_treatment_sample = treatment_sample.clicks.sum() / treatment_sample.views.sum()
@@ -185,7 +175,6 @@ def ctr_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_lev
             statistic (Callable): Statistic function. Defaults to difference_of_mean.
                 Choose statistic function from compare_functions.py
             plot (bool): If True, then bootstrap plot will be shown. Defaults to True
-            progress_bar (bool): If True, then progress bar will be shown. Defaults to False
         Returns:
             Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
                 bootstrap confidence interval, bootstrap difference distribution
@@ -204,16 +193,10 @@ def ctr_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_lev
     else:
         control_sample_size, treatment_sample_size = control.shape[0], treatment.shape[0]
 
-    if np.max([control.shape[0], treatment.shape[0]]) <= 10000:
-        if progress_bar:
-            bootstrap_difference_distribution = np.array([sample() for i in tqdm(range(number_of_bootstrap_samples))])
-        else:
-            bootstrap_difference_distribution = np.array([sample() for i in range(number_of_bootstrap_samples)])
-    else:
-        pool = ThreadPool(cpu_count())
-        bootstrap_difference_distribution = np.array(
-            pool.starmap(sample, [() for i in range(number_of_bootstrap_samples)]))
-        pool.close()
+    pool = ThreadPool(cpu_count())
+    bootstrap_difference_distribution = np.array(
+        pool.starmap(sample, [() for i in range(number_of_bootstrap_samples)]))
+    pool.close()
 
     bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_difference_distribution,
                                                                  bootstrap_conf_level)
@@ -242,8 +225,10 @@ def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, qu
         Tuple[float, ndarray]: Tuple containing quantile of interest mean value and bootstrap confidence interval
 
     """
+
     if not sample_size:
         sample_size = sample.shape[0]
+
     sample_sorted = np.sort(sample)
     left_quant = (1 - bootstrap_conf_level) / 2
     right_quant = 1 - (1 - bootstrap_conf_level) / 2
@@ -494,72 +479,12 @@ def plot_cdf(p_values: np.ndarray, label: str, ax: Axes, linewidth: float = 3) -
     ax.plot(sorted_data, cdf, label=label, linestyle='solid', linewidth=linewidth)
 
 
-def intra_user_correlation_aware_weights(clicks_1: np.ndarray, views_1: np.ndarray, views_2: np.ndarray) -> Tuple[
-    np.ndarray, np.ndarray]:
-    """Calculates weights for UMVUE global ctr estimate for every user in every experiment both in treatment and control groups
-
-    Args:
-        clicks_1 (ndarray): clicks of every user from control group in every experiment
-        views_1 (ndarray): views of every user from control group in every experiment
-        views_2 (ndarray): views of every user from treatment group in every experiment
-
-    Returns:
-        Tuple[ndarray, ndarray]: weights for every user in every experiment
-
-    """
-    ri = clicks_1 / views_1
-    s3 = clicks_1 * (1 - ri) ** 2 + (views_1 - clicks_1) * ri ** 2
-    s3 = np.sum(s3, axis=0) / np.sum(views_1 - 1, axis=0)
-    rb = np.mean(clicks_1 / views_1, axis=0)
-    s2 = clicks_1 * (1 - rb) ** 2 + (views_1 - clicks_1) * rb ** 2
-    s2 = np.sum(s2, axis=0) / (np.sum(views_1, axis=0) - 1)
-    rho = np.maximum(0, 1 - s3 / s2)
-    w_1 = views_1 / (1 + (views_1 - 1) * rho)
-    w_2 = views_2 / (1 + (views_2 - 1) * rho)
-    return w_1, w_2
-
-
-def estimate_quantile_of_mean(control: np.ndarray, bootstrap_conf_level: float = 0.95,
-                              number_of_bootstrap_samples: int = 10000) -> Tuple[float, np.ndarray]:
-    """Estimation quantile of the mean of the control group
-
-    Args:
-        control (ndarray):  array of control group data
-        bootstrap_conf_level (float): confidence level for bootstrap confidence interval
-        number_of_bootstrap_samples (int): number of bootstrap samples
-
-    Returns:
-        Tuple[float, np.ndarray]: quantile of the mean of the control group and bootstrap confidence interval
-
-    """
-
-    def sample():
-        control_sample = control[generator.choice(control.shape[0], size=control.shape[0], replace=True)]
-        quantile_of_mean = percentileofscore(control_sample, np.mean(control_sample)) / 100
-        return quantile_of_mean
-
-    generator = np.random.Generator(np.random.PCG64())
-    if control.shape[0] > 10000:
-        pool = ThreadPool(cpu_count())
-        quantile_array = np.array(pool.starmap(sample,
-                                               [() for i in range(number_of_bootstrap_samples)]))
-        pool.close()
-    else:
-        quantile_array = np.array([sample() for i in range(number_of_bootstrap_samples)])
-
-    confidence_interval = estimate_confidence_interval(quantile_array,
-                                                       bootstrap_conf_level=bootstrap_conf_level)
-    return np.mean(quantile_array), confidence_interval
-
-
 def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95,
                          number_of_bootstrap_samples: int = 10000,
                          sample_size: int = None,
-                         statistic: Callable = np.mean, plot: bool = False, progress_bar: bool = False) -> Tuple[
+                         statistic: Callable = np.mean, plot: bool = False) -> Tuple[
     float, float, np.ndarray, np.ndarray]:
     """One sample bootstrap
-
-    If control.shape[0] > 10000, then multiprocessing will be used
 
     Args:
         control (ndarray): 1D array containing control sample
@@ -571,7 +496,6 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
         statistic (Callable): Statistic function. Defaults to difference_of_mean.
             Choose statistic function from compare_functions.py
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
-        progress_bar (bool): If True, then progress bar will be shown. Defaults to False
     Returns:
         Tuple[float, ndarray, ndarray]: Tuple containing difference distribution statistic,
             bootstrap confidence interval, bootstrap difference distribution
@@ -585,26 +509,20 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
     control_sample_size = sample_size if sample_size else control.shape[0]
 
     generator = np.random.Generator(np.random.PCG64())
-    if control.shape[0] <= 10000:
-        if progress_bar:
-            bootstrap_difference_distribution = np.array([sample() for i in tqdm(range(number_of_bootstrap_samples))])
-        else:
-            bootstrap_difference_distribution = np.array([sample() for i in range(number_of_bootstrap_samples)])
-    else:
-        pool = ThreadPool(cpu_count())
-        bootstrap_difference_distribution = np.array(
-            pool.starmap(sample, [() for i in range(number_of_bootstrap_samples)]))
-        pool.close()
+    pool = ThreadPool(cpu_count())
+    bootstrap_distribution = np.array(
+        pool.starmap(sample, [() for i in range(number_of_bootstrap_samples)]))
+    pool.close()
 
-    bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_difference_distribution,
+    bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_distribution,
                                                                  bootstrap_conf_level)
-    bootstrap_difference_mean = bootstrap_difference_distribution.mean()
+    bootstrap_difference_mean = bootstrap_distribution.mean()
 
     if plot:
-        binwidth, _ = estimate_bin_params(bootstrap_difference_distribution)
-        plt.hist(bootstrap_difference_distribution,
-                 bins=np.arange(bootstrap_difference_distribution.min(),
-                                bootstrap_difference_distribution.max() + binwidth,
+        binwidth, _ = estimate_bin_params(bootstrap_distribution)
+        plt.hist(bootstrap_distribution,
+                 bins=np.arange(bootstrap_distribution.min(),
+                                bootstrap_distribution.max() + binwidth,
                                 binwidth))
         xlabel = ' '.join([i.capitalize() for i in statistic.__name__.split('_')])
         plt.title('Bootstrap')
@@ -612,9 +530,9 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
         plt.ylabel('Count')
         plt.axvline(x=bootstrap_confidence_interval[0], color='red', linestyle='dashed', linewidth=2)
         plt.axvline(x=bootstrap_confidence_interval[1], color='red', linestyle='dashed', linewidth=2)
-        plt.axvline(x=bootstrap_difference_distribution.mean(), color='black', linestyle='dashed', linewidth=5)
+        plt.axvline(x=bootstrap_difference_mean, color='black', linestyle='dashed', linewidth=5)
         plt.show()
-    return bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_difference_distribution
+    return bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_distribution
 
 
 def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, q: float = 0.5,
@@ -638,8 +556,10 @@ def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, q:
         Tuple[float, ndarray, ndarray]: Tuple containing quantile of interest, bootstrap confidence interval and bootstrap distribution
 
     """
+
     if not sample_size:
         sample_size = sample.shape[0]
+
     sample_sorted = np.sort(sample)
     left_quant = (1 - bootstrap_conf_level) / 2
     right_quant = 1 - (1 - bootstrap_conf_level) / 2
@@ -685,3 +605,67 @@ def poisson_bootstrap(control: np.ndarray, treatment: np.ndarray,
     bootstrap_difference_distribution = treatment_distribution - control_distribution
     p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
     return p_value
+
+
+def tbootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95,
+               number_of_bootstrap_samples: int = 10000,
+               sample_size: int = None,
+               statistic: Callable = np.mean, plot: bool = False) -> Tuple[
+    float, float, np.ndarray, np.ndarray]:
+    """One sample Studentized t-Bootstrap
+
+    If control.shape[0] > 10000, then multiprocessing will be used
+
+    Args:
+        control (ndarray): 1D array containing control sample
+        bootstrap_conf_level (float): Confidence level
+        number_of_bootstrap_samples (int): Number of bootstrap samples
+        sample_size (int): Sample size. Defaults to None. If None,
+            then control_sample_size and treatment_sample_size
+            wiil be equal to control.shape[0] and treatment.shape[0] respectively
+        statistic (Callable): Statistic function. Defaults to difference_of_mean.
+            Choose statistic function from compare_functions.py
+        plot (bool): If True, then bootstrap plot will be shown. Defaults to True
+    Returns:
+        Tuple[float, ndarray, ndarray]: Tuple containing difference distribution statistic,
+            bootstrap confidence interval, bootstrap difference distribution
+
+    """
+
+    def sample():
+        control_sample = control[generator.choice(control.shape[0], size=control_sample_size, replace=True)]
+        return statistic(control_sample), control_sample.std()
+
+    control_sample_size = sample_size if sample_size else control.shape[0]
+
+    generator = np.random.Generator(np.random.PCG64())
+    pool = ThreadPool(cpu_count())
+    bootstrap_stats = np.array(
+        pool.starmap(sample, [() for i in range(number_of_bootstrap_samples)]))
+    pool.close()
+
+    bootstrap_distribution = bootstrap_stats[:, 0]
+    bootstrap_std_distribution = bootstrap_stats[:, 1]
+    sample_stat = control.mean()
+    bootstrap_sd = bootstrap_distribution.std()
+    bootstrap_std_errors = bootstrap_std_distribution / np.sqrt(control_sample_size)
+    t_statistics = (bootstrap_distribution - sample_stat) / bootstrap_std_errors
+    lower, upper = estimate_confidence_interval(t_statistics, bootstrap_conf_level)
+    bootstrap_confidence_interval = np.array([sample_stat - bootstrap_sd * upper, sample_stat - bootstrap_sd * lower])
+    bootstrap_distribution_mean = bootstrap_distribution.mean()
+
+    if plot:
+        binwidth, _ = estimate_bin_params(bootstrap_distribution)
+        plt.hist(bootstrap_distribution,
+                 bins=np.arange(bootstrap_distribution.min(),
+                                bootstrap_distribution.max() + binwidth,
+                                binwidth))
+        xlabel = ' '.join([i.capitalize() for i in statistic.__name__.split('_')])
+        plt.title('tBootstrap')
+        plt.xlabel(xlabel)
+        plt.ylabel('Count')
+        plt.axvline(x=bootstrap_confidence_interval[0], color='red', linestyle='dashed', linewidth=2)
+        plt.axvline(x=bootstrap_confidence_interval[1], color='red', linestyle='dashed', linewidth=2)
+        plt.axvline(x=bootstrap_distribution_mean, color='black', linestyle='dashed', linewidth=5)
+        plt.show()
+    return bootstrap_distribution_mean, bootstrap_confidence_interval, bootstrap_distribution
