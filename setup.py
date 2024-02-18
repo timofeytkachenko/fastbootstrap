@@ -8,7 +8,7 @@ def readme():
 
 setup(
     name='fastbootstrap',
-    version='1.0.4',
+    version='1.0.5',
     author='Timofey Tkachenko',
     author_email='timofey_tkachenko@pm.me',
     description='Fast Python implementation of statistical bootstrap',
@@ -23,8 +23,7 @@ setup(
                       'numpy==1.26.4',
                       'scipy==1.12.0',
                       'pandas==2.2.0',
-                      'tqdm==4.66.2',
-                      'multiprocess==0.70.16'],
-    keywords='bootstrap resampling fast_bootstrap, fast_resampling',
+                      'tqdm==4.66.2'],
+    keywords='bootstrap fast_bootstrap',
     python_requires='>=3.10.12'
 )

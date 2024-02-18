@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from scipy.stats import norm, binom
 from numpy.random import binomial
-from multiprocess import cpu_count
+from multiprocessing import cpu_count
 from multiprocessing.pool import ThreadPool
 from .compare_functions import difference_of_mean, difference
 from scipy.stats import percentileofscore
@@ -103,7 +103,7 @@ def bootstrap_plot(bootstrap_difference_distribution: np.ndarray, bootstrap_conf
     plt.show()
 
 
-def bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: float = 0.95,
+def two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: float = 0.95,
               number_of_bootstrap_samples: int = 10000,
               sample_size: int = None,
               statistic: Callable = difference_of_mean, plot: bool = False) -> Tuple[
@@ -607,7 +607,7 @@ def poisson_bootstrap(control: np.ndarray, treatment: np.ndarray,
     return p_value
 
 
-def tbootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95,
+def one_sample_tbootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95,
                number_of_bootstrap_samples: int = 10000,
                sample_size: int = None,
                statistic: Callable = np.mean, plot: bool = False) -> Tuple[
@@ -669,3 +669,56 @@ def tbootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95,
         plt.axvline(x=bootstrap_distribution_mean, color='black', linestyle='dashed', linewidth=5)
         plt.show()
     return bootstrap_distribution_mean, bootstrap_confidence_interval, bootstrap_distribution
+
+
+def two_sample_tbootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: float = 0.95,
+                          number_of_bootstrap_samples: int = 10000,
+                          sample_size: int = None,
+                          statistic: Callable = difference_of_mean, plot: bool = False) -> Tuple[
+    float, float, np.ndarray, np.ndarray]:
+    """Two-sample Studentized t-Bootstrap
+
+    Args:
+        control (ndarray): 1D array containing control sample
+        treatment (ndarray): 1D array containing treatment sample
+        bootstrap_conf_level (float): Confidence level
+        number_of_bootstrap_samples (int): Number of bootstrap samples
+        sample_size (int): Sample size. Defaults to None. If None,
+            then control_sample_size and treatment_sample_size
+            wiil be equal to control.shape[0] and treatment.shape[0] respectively
+        statistic (Callable): Statistic function. Defaults to difference_of_mean.
+            Choose statistic function from compare_functions.py
+        plot (bool): If True, then bootstrap plot will be shown. Defaults to True
+    Returns:
+        Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
+            bootstrap confidence interval, bootstrap difference distribution
+
+    """
+
+    def sample():
+        control_sample = control[generator.choice(control.shape[0], sample_size, replace=True)]
+        treatment_sample = treatment[generator.choice(treatment.shape[0], sample_size, replace=True)]
+        return statistic(control_sample, treatment_sample), np.std(treatment_sample-control_sample)
+
+    if sample_size is None:
+        sample_size = np.min([control.shape[0], treatment.shape[0]])
+
+    generator = np.random.Generator(np.random.PCG64())
+    pool = ThreadPool(cpu_count())
+    bootstrap_stats = np.array(pool.starmap(sample, [() for i in range(number_of_bootstrap_samples)]))
+    pool.close()
+
+    bootstrap_difference_distribution = bootstrap_stats[:, 0]
+    bootstrap_difference_std_distribution = bootstrap_stats[:, 1]
+    sample_stat = treatment.mean() - control.mean()
+    bootstrap_sd = bootstrap_difference_distribution.std()
+    bootstrap_std_errors = bootstrap_difference_std_distribution / np.sqrt(sample_size)
+    t_statistics = (bootstrap_difference_distribution - sample_stat) / bootstrap_std_errors
+    lower, upper = estimate_confidence_interval(t_statistics, bootstrap_conf_level)
+    bootstrap_confidence_interval = np.array([sample_stat - bootstrap_sd * upper, sample_stat - bootstrap_sd * lower])
+    bootstrap_difference_distribution_mean = bootstrap_difference_distribution.mean()
+    p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
+
+    if plot:
+        bootstrap_plot(bootstrap_difference_distribution, bootstrap_confidence_interval, statistic=statistic)
+    return p_value, bootstrap_difference_distribution_mean, bootstrap_confidence_interval, bootstrap_difference_distribution
