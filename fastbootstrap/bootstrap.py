@@ -4,8 +4,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
-from scipy.stats import norm, binom, dirichlet
-from numpy.random import normal, binomial
+from scipy.stats import norm, binom
+from numpy.random import binomial
 from multiprocess import cpu_count
 from multiprocessing.pool import ThreadPool
 from .compare_functions import difference_of_mean, difference
@@ -670,7 +670,7 @@ def poisson_bootstrap(control: np.ndarray, treatment: np.ndarray,
         number_of_bootstrap_samples (int): Number of bootstrap samples. Defaults to 10000
 
     Returns:
-        int: p-value
+        float: p-value
 
     """
 
