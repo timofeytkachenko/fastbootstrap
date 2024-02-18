@@ -421,7 +421,7 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
          'lower_bound': statistics[:, 2],
          'upper_bound': statistics[:, 3]}
     )
-    df['significance'] = (df['p_value'] < 0.05).astype(str)
+    df['significance'] = (df['p_value'] < correction_list).astype(str)
 
     df["ci_upper"] = df["upper_bound"] - df["difference"]
     df["ci_lower"] = df["difference"] - df["lower_bound"]
