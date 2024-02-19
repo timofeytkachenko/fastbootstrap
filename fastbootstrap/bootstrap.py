@@ -482,10 +482,10 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
     """
 
     def sample():
-        control_sample = control[generator.choice(control.shape[0], size=control_sample_size, replace=True)]
+        control_sample = control[generator.choice(control.shape[0], size=sample_size, replace=True)]
         return statistic(control_sample)
 
-    control_sample_size = sample_size if sample_size else control.shape[0]
+    sample_size = sample_size if sample_size else control.shape[0]
 
     generator = np.random.Generator(np.random.PCG64())
     pool = ThreadPool(cpu_count())
@@ -498,19 +498,8 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
     bootstrap_difference_mean = bootstrap_distribution.mean()
 
     if plot:
-        binwidth, _ = estimate_bin_params(bootstrap_distribution)
-        plt.hist(bootstrap_distribution,
-                 bins=np.arange(bootstrap_distribution.min(),
-                                bootstrap_distribution.max() + binwidth,
-                                binwidth))
-        xlabel = ' '.join([i.capitalize() for i in statistic.__name__.split('_')])
-        plt.title('Bootstrap')
-        plt.xlabel(xlabel)
-        plt.ylabel('Count')
-        plt.axvline(x=bootstrap_confidence_interval[0], color='red', linestyle='dashed', linewidth=2)
-        plt.axvline(x=bootstrap_confidence_interval[1], color='red', linestyle='dashed', linewidth=2)
-        plt.axvline(x=bootstrap_difference_mean, color='black', linestyle='dashed', linewidth=5)
-        plt.show()
+        bootstrap_plot(bootstrap_distribution, bootstrap_confidence_interval, statistic=statistic,
+                       two_sample_plot=False)
     return bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_distribution
 
 
@@ -605,10 +594,10 @@ def one_sample_tbootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.9
     """
 
     def sample():
-        control_sample = control[generator.choice(control.shape[0], size=control_sample_size, replace=True)]
+        control_sample = control[generator.choice(control.shape[0], size=sample_size, replace=True)]
         return statistic(control_sample), control_sample.std()
 
-    control_sample_size = sample_size if sample_size else control.shape[0]
+    sample_size = sample_size if sample_size else control.shape[0]
 
     generator = np.random.Generator(np.random.PCG64())
     pool = ThreadPool(cpu_count())
@@ -618,9 +607,9 @@ def one_sample_tbootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.9
 
     bootstrap_distribution = bootstrap_stats[:, 0]
     bootstrap_std_distribution = bootstrap_stats[:, 1]
-    sample_stat = control.mean()
+    sample_stat = statistic(control)
     bootstrap_distribution_std = bootstrap_distribution.std()
-    bootstrap_std_errors = bootstrap_std_distribution / np.sqrt(control_sample_size)
+    bootstrap_std_errors = bootstrap_std_distribution / np.sqrt(sample_size)
     t_statistics = (bootstrap_distribution - sample_stat) / bootstrap_std_errors
     lower, upper = estimate_confidence_interval(t_statistics, bootstrap_conf_level)
     bootstrap_confidence_interval = np.array(
@@ -673,7 +662,7 @@ def two_sample_tbootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_
 
     bootstrap_difference_distribution = bootstrap_stats[:, 0]
     bootstrap_difference_std_distribution = bootstrap_stats[:, 1]
-    sample_stat = treatment.mean() - control.mean()
+    sample_stat = statistic(control, treatment)
     bootstrap_difference_distribution_std = bootstrap_difference_distribution.std()
     bootstrap_std_errors = bootstrap_difference_std_distribution / np.sqrt(sample_size)
     t_statistics = (bootstrap_difference_distribution - sample_stat) / bootstrap_std_errors
