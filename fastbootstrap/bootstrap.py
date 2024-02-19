@@ -478,6 +478,7 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
                          number_of_bootstrap_samples: int = 10000,
                          sample_size: int = None,
                          statistic: Callable = np.mean,
+                         method: str = 'percentile',
                          return_distribution: bool = False,
                          plot: bool = False) -> Tuple[float, np.ndarray, np.ndarray] | Tuple[float, np.ndarray]:
     """One sample bootstrap
@@ -491,6 +492,7 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
             wiil be equal to control.shape[0] and treatment.shape[0] respectively
         statistic (Callable): Statistic function. Defaults to difference_of_mean.
             Choose statistic function from compare_functions.py
+        method (str): Bootstrap method. Defaults to 'percentile'. Choose from 'basic', 'percentile', 'studentized'
         return_distribution (bool): If True, then bootstrap difference distribution will be returned. Defaults to False
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
 
@@ -502,18 +504,49 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
 
     def sample():
         control_sample = control[generator.choice(control.shape[0], size=sample_size, replace=True)]
-        return statistic(control_sample)
+
+        match method:
+            case 'basic' | 'percentile':
+                return statistic(control_sample)
+            case 'studentized':
+                return statistic(control_sample), control_sample.std()
+
+    if method not in ['basic', 'percentile', 'studentized']:
+        raise ValueError('method argument should be "basic" or "studentized"')
 
     sample_size = sample_size if sample_size else control.shape[0]
 
     generator = np.random.Generator(np.random.PCG64())
     pool = ThreadPool(cpu_count())
-    bootstrap_distribution = np.array(
+    bootstrap_stats = np.array(
         pool.starmap(sample, [() for i in range(number_of_bootstrap_samples)]))
     pool.close()
 
-    bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_distribution,
-                                                                 bootstrap_conf_level)
+    sample_stat = statistic(control)
+
+    match method:
+        case 'basic':
+            bootstrap_distribution = bootstrap_stats
+            percentile_bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_distribution,
+                                                                                    bootstrap_conf_level)
+            bootstrap_confidence_interval = np.array(
+                [2 * sample_stat - percentile_bootstrap_confidence_interval[1],
+                 2 * sample_stat - percentile_bootstrap_confidence_interval[0]])
+
+        case 'percentile':
+            bootstrap_distribution = bootstrap_stats
+            bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_distribution,
+                                                                         bootstrap_conf_level)
+        case 'studentized':
+            bootstrap_distribution = bootstrap_stats[:, 0]
+            bootstrap_std_distribution = bootstrap_stats[:, 1]
+            bootstrap_distribution_std = bootstrap_distribution.std()
+            bootstrap_std_errors = bootstrap_std_distribution / np.sqrt(sample_size)
+            t_statistics = (bootstrap_distribution - sample_stat) / bootstrap_std_errors
+            lower, upper = estimate_confidence_interval(t_statistics, bootstrap_conf_level)
+            bootstrap_confidence_interval = np.array(
+                [sample_stat - bootstrap_distribution_std * upper, sample_stat - bootstrap_distribution_std * lower])
+
     bootstrap_difference_median = np.median(bootstrap_distribution)
 
     if plot:
