@@ -100,7 +100,7 @@ def bootstrap_plot(bootstrap_difference_distribution: np.ndarray, bootstrap_conf
     plt.ylabel('Count')
     plt.axvline(x=bootstrap_confidence_interval[0], color='red', linestyle='dashed', linewidth=2)
     plt.axvline(x=bootstrap_confidence_interval[1], color='red', linestyle='dashed', linewidth=2)
-    plt.axvline(x=bootstrap_difference_distribution.mean(), color='black', linestyle='dashed', linewidth=5)
+    plt.axvline(x=np.median(bootstrap_difference_distribution), color='black', linestyle='dashed', linewidth=5)
     if two_sample_plot:
         plt.axvline(x=0, color='white', linewidth=5)
     plt.show()
@@ -149,12 +149,12 @@ def two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_c
 
     bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_difference_distribution,
                                                                  bootstrap_conf_level)
-    bootstrap_difference_mean = bootstrap_difference_distribution.mean()
+    bootstrap_difference_median = np.median(bootstrap_difference_distribution)
     p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
 
     if plot:
         bootstrap_plot(bootstrap_difference_distribution, bootstrap_confidence_interval, statistic=statistic)
-    return p_value, bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_difference_distribution
+    return p_value, bootstrap_difference_median, bootstrap_confidence_interval, bootstrap_difference_distribution
 
 
 def ctr_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: float = 0.95,
@@ -205,12 +205,12 @@ def ctr_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_lev
 
     bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_difference_distribution,
                                                                  bootstrap_conf_level)
-    bootstrap_difference_mean = bootstrap_difference_distribution.mean()
+    bootstrap_difference_median = np.median(bootstrap_difference_distribution)
     p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
 
     if plot:
         bootstrap_plot(bootstrap_difference_distribution, bootstrap_confidence_interval, statistic='CTR Difference')
-    return p_value, bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_difference_distribution
+    return p_value, bootstrap_difference_median, bootstrap_confidence_interval, bootstrap_difference_distribution
 
 
 def spotify_two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, number_of_bootstrap_samples: int = 10000,
@@ -261,16 +261,13 @@ def spotify_two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, num
     control_sample_values = sorted_control[
         binomial(control_sample_size + 1, q1, number_of_bootstrap_samples)]
     bootstrap_difference_distribution = statistic(control_sample_values, treatment_sample_values)
-
-    bootstrap_difference_mean = statistic(
-        np.quantile(sorted_control, q1), np.quantile(sorted_treatment, q2))
-
+    bootstrap_difference = statistic(np.quantile(sorted_control, q1), np.quantile(sorted_treatment, q2))
     bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_difference_distribution,
                                                                  bootstrap_conf_level)
     p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
     if plot:
         bootstrap_plot(bootstrap_difference_distribution, bootstrap_confidence_interval, statistic=statistic)
-    return p_value, bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_difference_distribution
+    return p_value, bootstrap_difference, bootstrap_confidence_interval, bootstrap_difference_distribution
 
 
 def ab_test_simulation(control: np.ndarray, treatment: np.ndarray, number_of_experiments: int = 2000,
@@ -460,8 +457,7 @@ def plot_cdf(p_values: np.ndarray, label: str, ax: Axes, linewidth: float = 3) -
 def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95,
                          number_of_bootstrap_samples: int = 10000,
                          sample_size: int = None,
-                         statistic: Callable = np.mean, plot: bool = False) -> Tuple[
-    float, float, np.ndarray, np.ndarray]:
+                         statistic: Callable = np.mean, plot: bool = False) -> Tuple[float, np.ndarray, np.ndarray]:
     """One sample bootstrap
 
     Args:
@@ -495,12 +491,12 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
 
     bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_distribution,
                                                                  bootstrap_conf_level)
-    bootstrap_difference_mean = bootstrap_distribution.mean()
+    bootstrap_difference_median = np.median(bootstrap_distribution)
 
     if plot:
         bootstrap_plot(bootstrap_distribution, bootstrap_confidence_interval, statistic=statistic,
                        two_sample_plot=False)
-    return bootstrap_difference_mean, bootstrap_confidence_interval, bootstrap_distribution
+    return bootstrap_difference_median, bootstrap_confidence_interval, bootstrap_distribution
 
 
 def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, q: float = 0.5,
@@ -543,7 +539,7 @@ def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, q:
 
 
 def poisson_bootstrap(control: np.ndarray, treatment: np.ndarray,
-                      number_of_bootstrap_samples: int = 10000) -> int:
+                      number_of_bootstrap_samples: int = 10000) -> float:
     """Simple Poisson Bootstrap
 
     Args:
@@ -572,8 +568,7 @@ def poisson_bootstrap(control: np.ndarray, treatment: np.ndarray,
 def one_sample_tbootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95,
                           number_of_bootstrap_samples: int = 10000,
                           sample_size: int = None,
-                          statistic: Callable = np.mean, plot: bool = False) -> Tuple[
-    float, float, np.ndarray, np.ndarray]:
+                          statistic: Callable = np.mean, plot: bool = False) -> Tuple[float, np.ndarray, np.ndarray]:
     """One sample Studentized t-Bootstrap
 
     Args:
@@ -614,12 +609,12 @@ def one_sample_tbootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.9
     lower, upper = estimate_confidence_interval(t_statistics, bootstrap_conf_level)
     bootstrap_confidence_interval = np.array(
         [sample_stat - bootstrap_distribution_std * upper, sample_stat - bootstrap_distribution_std * lower])
-    bootstrap_distribution_mean = bootstrap_distribution.mean()
+    bootstrap_distribution_median = np.median(bootstrap_distribution)
 
     if plot:
         bootstrap_plot(bootstrap_distribution, bootstrap_confidence_interval, statistic=statistic, title='t-Bootstrap',
                        two_sample_plot=False)
-    return bootstrap_distribution_mean, bootstrap_confidence_interval, bootstrap_distribution
+    return bootstrap_distribution_median, bootstrap_confidence_interval, bootstrap_distribution
 
 
 def two_sample_tbootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: float = 0.95,
@@ -669,10 +664,10 @@ def two_sample_tbootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_
     lower, upper = estimate_confidence_interval(t_statistics, bootstrap_conf_level)
     bootstrap_confidence_interval = np.array([sample_stat - bootstrap_difference_distribution_std * upper,
                                               sample_stat - bootstrap_difference_distribution_std * lower])
-    bootstrap_difference_distribution_mean = bootstrap_difference_distribution.mean()
+    bootstrap_difference_distribution_median = np.median(bootstrap_difference_distribution)
     p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
 
     if plot:
         bootstrap_plot(bootstrap_difference_distribution, bootstrap_confidence_interval, statistic=statistic,
                        title='t-Bootstrap')
-    return p_value, bootstrap_difference_distribution_mean, bootstrap_confidence_interval, bootstrap_difference_distribution
+    return p_value, bootstrap_difference_distribution_median, bootstrap_confidence_interval, bootstrap_difference_distribution
