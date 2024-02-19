@@ -67,6 +67,93 @@ def estimate_bin_params(sample: object) -> Tuple[float, int]:
     return bin_width, bin_count
 
 
+def compute_jackknife_distribution(control: np.ndarray, statistic: Callable = np.mean) -> np.ndarray:
+    """Returns jackknife resampled replicates for the given data and statistical function
+
+    Args:
+        control (ndarray): 1D array containing control sample
+        statistic (function): statistical function to be used for the interval
+
+    Returns:
+        ndarray: jackknife distribution
+
+    """
+
+    jack_distribution = []
+    for i in range(control.shape[0]):
+        jack_sample = np.delete(control, i)
+        jack_distribution.append(statistic(jack_sample))
+    return np.array(jack_distribution)
+
+
+def compute_a(jack_distribution: np.ndarray) -> float:
+    """Returns the acceleration constant a
+
+    Args:
+        jack_distribution (ndarray): 1D array containing jackknife distribution
+
+    Returns:
+        float: acceleration constant a
+
+    """
+    mean = np.mean(jack_distribution)
+    return (1 / 6) * np.divide(np.sum(mean - jack_distribution) ** 3,
+                               (np.sum(mean - jack_distribution) ** 2) ** (3 / 2))
+
+
+def compute_z0(control: np.ndarray, bootstrap_distribution: np.ndarray, statistic: Callable = np.mean) -> float:
+    """Computes z0 for given data and statistical function
+
+    Args:
+        control (ndarray): 1D array containing control sample
+        bootstrap_distribution (ndarray): 1D array containing bootstrap distribution
+        statistic (function): statistical function to be used for the interval
+
+    Returns:
+        float: z0 value
+
+    """
+
+    s = statistic(control)
+    return norm.ppf(np.sum(bootstrap_distribution < s) / bootstrap_distribution.shape[0])
+
+
+def compute_bca_confidence_interval(control: np.ndarray, bootstrap_distribution: np.ndarray,
+                                    bootstrap_conf_level: float = 0.95,
+                                    statistic=np.mean) -> np.ndarray:
+    """Returns BCa confidence interval for given data at given alpha level
+
+    Args:
+        control (ndarray): 1D array containing control sample
+        bootstrap_distribution (ndarray): 1D array containing bootstrap distribution
+        bootstrap_conf_level (float): confidence level for the interval
+        statistic (function): statistical function to be used for the interval
+
+    Returns:
+        ndarray: array with lower and upper bounds of the confidence interval
+
+    """
+
+    # Compute bootstrap and jackknife replicates
+    jack_distribution = compute_jackknife_distribution(control, statistic)
+
+    # Compute a and z0
+    a = compute_a(jack_distribution)
+    z0 = compute_z0(control, bootstrap_distribution, statistic)
+
+    # Compute confidence interval indices
+    alpha = np.array([(1 - bootstrap_conf_level) / 2, 1 - (1 - bootstrap_conf_level) / 2])
+    zs = z0 + norm.ppf(alpha).reshape(alpha.shape + (1,) * z0.ndim)
+    a = norm.cdf(z0 + zs / (1 - a * zs))
+    indices = np.round((bootstrap_distribution.shape[0] - 1) * a)
+    indices = np.nan_to_num(indices).astype('int')
+
+    # Compute confidence interval
+    bootstrap_distribution_sorted = np.sort(bootstrap_distribution)
+    bootstrap_confidence_interval = bootstrap_distribution_sorted[indices]
+    return bootstrap_confidence_interval
+
+
 def bootstrap_plot(bootstrap_difference_distribution: np.ndarray, bootstrap_confidence_interval: np.ndarray,
                    statistic: Union[str, Callable] = None, title: str = 'Bootstrap',
                    two_sample_plot: bool = True) -> None:
@@ -492,7 +579,7 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
             wiil be equal to control.shape[0] and treatment.shape[0] respectively
         statistic (Callable): Statistic function. Defaults to difference_of_mean.
             Choose statistic function from compare_functions.py
-        method (str): Bootstrap method. Defaults to 'percentile'. Choose from 'basic', 'percentile', 'studentized'
+        method (str): Bootstrap method. Defaults to 'percentile'. Choose from 'bca', 'basic', 'percentile', 'studentized'
         return_distribution (bool): If True, then bootstrap difference distribution will be returned. Defaults to False
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
 
@@ -506,13 +593,13 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
         control_sample = control[generator.choice(control.shape[0], size=sample_size, replace=True)]
 
         match method:
-            case 'basic' | 'percentile':
-                return statistic(control_sample)
             case 'studentized':
                 return statistic(control_sample), control_sample.std()
+            case _:
+                return statistic(control_sample)
 
-    if method not in ['basic', 'percentile', 'studentized']:
-        raise ValueError('method argument should be "basic" or "studentized"')
+    if method not in ['bca', 'basic', 'percentile', 'studentized']:
+        raise ValueError('method argument should be one of the following: bca, basic, percentile, studentized')
 
     sample_size = sample_size if sample_size else control.shape[0]
 
@@ -525,6 +612,11 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
     sample_stat = statistic(control)
 
     match method:
+        case 'bca':
+            bootstrap_distribution = bootstrap_stats
+            bootstrap_confidence_interval = compute_bca_confidence_interval(control, bootstrap_distribution,
+                                                                            bootstrap_conf_level=bootstrap_conf_level,
+                                                                            statistic=statistic)
         case 'basic':
             bootstrap_distribution = bootstrap_stats
             percentile_bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_distribution,
@@ -629,65 +721,6 @@ def poisson_bootstrap(control: np.ndarray, treatment: np.ndarray,
     bootstrap_difference_distribution = treatment_distribution - control_distribution
     p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
     return p_value
-
-
-def one_sample_tbootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95,
-                          number_of_bootstrap_samples: int = 10000,
-                          sample_size: int = None,
-                          statistic: Callable = np.mean,
-                          return_distribution: bool = False,
-                          plot: bool = False) -> Tuple[float, np.ndarray, np.ndarray] | Tuple[float, np.ndarray]:
-    """One sample Studentized t-Bootstrap
-
-    Args:
-        control (ndarray): 1D array containing control sample
-        bootstrap_conf_level (float): Confidence level
-        number_of_bootstrap_samples (int): Number of bootstrap samples
-        sample_size (int): Sample size. Defaults to None. If None,
-            then control_sample_size and treatment_sample_size
-            wiil be equal to control.shape[0] and treatment.shape[0] respectively
-        statistic (Callable): Statistic function. Defaults to difference_of_mean.
-            Choose statistic function from compare_functions.py
-        return_distribution (bool): If True, then bootstrap difference distribution will be returned. Defaults to False
-        plot (bool): If True, then bootstrap plot will be shown. Defaults to True
-
-    Returns:
-        Tuple[float, ndarray, ndarray]: Tuple containing difference distribution statistic,
-            bootstrap confidence interval, bootstrap difference distribution
-
-    """
-
-    def sample():
-        control_sample = control[generator.choice(control.shape[0], size=sample_size, replace=True)]
-        return statistic(control_sample), control_sample.std()
-
-    sample_size = sample_size if sample_size else control.shape[0]
-
-    generator = np.random.Generator(np.random.PCG64())
-    pool = ThreadPool(cpu_count())
-    bootstrap_stats = np.array(
-        pool.starmap(sample, [() for i in range(number_of_bootstrap_samples)]))
-    pool.close()
-
-    bootstrap_distribution = bootstrap_stats[:, 0]
-    bootstrap_std_distribution = bootstrap_stats[:, 1]
-    sample_stat = statistic(control)
-    bootstrap_distribution_std = bootstrap_distribution.std()
-    bootstrap_std_errors = bootstrap_std_distribution / np.sqrt(sample_size)
-    t_statistics = (bootstrap_distribution - sample_stat) / bootstrap_std_errors
-    lower, upper = estimate_confidence_interval(t_statistics, bootstrap_conf_level)
-    bootstrap_confidence_interval = np.array(
-        [sample_stat - bootstrap_distribution_std * upper, sample_stat - bootstrap_distribution_std * lower])
-    bootstrap_distribution_median = np.median(bootstrap_distribution)
-
-    if plot:
-        bootstrap_plot(bootstrap_distribution, bootstrap_confidence_interval, statistic=statistic, title='t-Bootstrap',
-                       two_sample_plot=False)
-
-    if return_distribution:
-        return bootstrap_distribution_median, bootstrap_confidence_interval, bootstrap_distribution
-    else:
-        return bootstrap_distribution_median, bootstrap_confidence_interval
 
 
 def two_sample_tbootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: float = 0.95,
