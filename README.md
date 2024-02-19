@@ -16,7 +16,7 @@ n = 10000
 sample_1 = np.random.exponential(scale=1 / 0.001, size=n)
 sample_2 = np.random.exponential(scale=1 / 0.00101, size=n)
 
-p_value, boot_mean, boot_conf_interval, boot_dist = two_sample_bootstrap(sample_1, sample_2, plot=True)
+p_value, boot_mean, boot_conf_interval = two_sample_bootstrap(sample_1, sample_2, plot=True)
 ```
 ![img.png](img.png)
 ___

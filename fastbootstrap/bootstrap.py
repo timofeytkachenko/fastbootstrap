@@ -109,8 +109,10 @@ def bootstrap_plot(bootstrap_difference_distribution: np.ndarray, bootstrap_conf
 def two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: float = 0.95,
                          number_of_bootstrap_samples: int = 10000,
                          sample_size: int = None,
-                         statistic: Callable = difference_of_mean, plot: bool = False) -> Tuple[
-    float, float, np.ndarray, np.ndarray]:
+                         statistic: Callable = difference_of_mean,
+                         return_distribution: bool = False,
+                         plot: bool = False) -> Tuple[float, float, np.ndarray, np.ndarray] | Tuple[
+    float, float, np.ndarray]:
     """Two-sample bootstrap
 
     Args:
@@ -123,6 +125,7 @@ def two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_c
             wiil be equal to control.shape[0] and treatment.shape[0] respectively
         statistic (Callable): Statistic function. Defaults to difference_of_mean.
             Choose statistic function from compare_functions.py
+        return_distribution (bool): If True, then bootstrap difference distribution will be returned. Defaults to False
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
 
     Returns:
@@ -154,13 +157,18 @@ def two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_c
 
     if plot:
         bootstrap_plot(bootstrap_difference_distribution, bootstrap_confidence_interval, statistic=statistic)
-    return p_value, bootstrap_difference_median, bootstrap_confidence_interval, bootstrap_difference_distribution
+
+    if return_distribution:
+        return p_value, bootstrap_difference_median, bootstrap_confidence_interval, bootstrap_difference_distribution
+    else:
+        return p_value, bootstrap_difference_median, bootstrap_confidence_interval
 
 
 def ctr_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: float = 0.95,
                   number_of_bootstrap_samples: int = 10000,
-                  sample_size: int = None, plot: bool = False) -> Tuple[
-    float, float, np.ndarray, np.ndarray]:
+                  sample_size: int = None,
+                  return_distribution: bool = False,
+                  plot: bool = False) -> Tuple[float, float, np.ndarray, np.ndarray] | Tuple[float, float, np.ndarray]:
     """Two-sample CTR-Bootstrap
 
     In every sample global CTR will be used to difference calculation:
@@ -178,6 +186,7 @@ def ctr_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_lev
             wiil be equal to control.shape[0] and treatment.shape[0] respectively
         statistic (Callable): Statistic function. Defaults to difference_of_mean.
             Choose statistic function from compare_functions.py
+        return_distribution (bool): If True, then bootstrap difference distribution will be returned. Defaults to False
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
 
     Returns:
@@ -210,14 +219,20 @@ def ctr_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_lev
 
     if plot:
         bootstrap_plot(bootstrap_difference_distribution, bootstrap_confidence_interval, statistic='CTR Difference')
-    return p_value, bootstrap_difference_median, bootstrap_confidence_interval, bootstrap_difference_distribution
+
+    if return_distribution:
+        return p_value, bootstrap_difference_median, bootstrap_confidence_interval, bootstrap_difference_distribution
+    else:
+        return p_value, bootstrap_difference_median, bootstrap_confidence_interval
 
 
 def spotify_two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, number_of_bootstrap_samples: int = 10000,
                                  sample_size: int = None, q1: float = 0.5, q2: float = None,
                                  statistic: Callable = difference,
                                  bootstrap_conf_level: float = 0.95,
-                                 plot: bool = False) -> Tuple[float, float, np.ndarray, np.ndarray]:
+                                 return_distribution: bool = False,
+                                 plot: bool = False) -> Tuple[float, float, np.ndarray, np.ndarray] | Tuple[
+    float, float, np.ndarray]:
     """Two-sample Spotify-Bootstrap
 
     Can be used for difference of quantiles, difference of means, difference of medians, etc.
@@ -238,6 +253,7 @@ def spotify_two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, num
         q2 (float): Quantile of interest for treatment sample. Defaults to 0.5
         statistic (Callable): Statistic function. Defaults to difference.
             Choose statistic function from compare_functions.py
+        return_distribution (bool): If True, then bootstrap difference distribution will be returned. Defaults to False
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
 
     Returns:
@@ -267,7 +283,11 @@ def spotify_two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, num
     p_value = estimate_p_value(bootstrap_difference_distribution, number_of_bootstrap_samples)
     if plot:
         bootstrap_plot(bootstrap_difference_distribution, bootstrap_confidence_interval, statistic=statistic)
-    return p_value, bootstrap_difference, bootstrap_confidence_interval, bootstrap_difference_distribution
+
+    if return_distribution:
+        return p_value, bootstrap_difference, bootstrap_confidence_interval, bootstrap_difference_distribution
+    else:
+        return p_value, bootstrap_difference, bootstrap_confidence_interval
 
 
 def ab_test_simulation(control: np.ndarray, treatment: np.ndarray, number_of_experiments: int = 2000,
@@ -365,11 +385,11 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
             case 'bh':
                 corr = ((1 - bootstrap_conf_level) * (i + 1)) / n_step
         correction_list.append(corr)
-        p_value, bootstrap_mean, bootstrap_confidence_interval, _ = spotify_two_sample_bootstrap(control, treatment,
-                                                                                                 q1=quantile,
-                                                                                                 q2=quantile,
-                                                                                                 statistic=statistic,
-                                                                                                 bootstrap_conf_level=1 - corr)
+        p_value, bootstrap_mean, bootstrap_confidence_interval = spotify_two_sample_bootstrap(control, treatment,
+                                                                                              q1=quantile,
+                                                                                              q2=quantile,
+                                                                                              statistic=statistic,
+                                                                                              bootstrap_conf_level=1 - corr)
         statistics.append([p_value, bootstrap_mean, bootstrap_confidence_interval[0], bootstrap_confidence_interval[1]])
     statistics = np.array(statistics)
 
@@ -457,7 +477,9 @@ def plot_cdf(p_values: np.ndarray, label: str, ax: Axes, linewidth: float = 3) -
 def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95,
                          number_of_bootstrap_samples: int = 10000,
                          sample_size: int = None,
-                         statistic: Callable = np.mean, plot: bool = False) -> Tuple[float, np.ndarray, np.ndarray]:
+                         statistic: Callable = np.mean,
+                         return_distribution: bool = False,
+                         plot: bool = False) -> Tuple[float, np.ndarray, np.ndarray] | Tuple[float, np.ndarray]:
     """One sample bootstrap
 
     Args:
@@ -469,6 +491,7 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
             wiil be equal to control.shape[0] and treatment.shape[0] respectively
         statistic (Callable): Statistic function. Defaults to difference_of_mean.
             Choose statistic function from compare_functions.py
+        return_distribution (bool): If True, then bootstrap difference distribution will be returned. Defaults to False
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
 
     Returns:
@@ -496,12 +519,17 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
     if plot:
         bootstrap_plot(bootstrap_distribution, bootstrap_confidence_interval, statistic=statistic,
                        two_sample_plot=False)
-    return bootstrap_difference_median, bootstrap_confidence_interval, bootstrap_distribution
+
+    if return_distribution:
+        return bootstrap_difference_median, bootstrap_confidence_interval, bootstrap_distribution
+    else:
+        return bootstrap_difference_median, bootstrap_confidence_interval
 
 
 def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, q: float = 0.5,
                                  bootstrap_conf_level: float = 0.95, number_of_bootstrap_samples: int = 10000,
-                                 plot=False) -> Tuple[float, np.ndarray, np.ndarray]:
+                                 return_distribution: bool = False,
+                                 plot=False) -> Tuple[float, np.ndarray, np.ndarray] | Tuple[float, np.ndarray]:
     """One-sample Spotify-Bootstrap
 
     Mårten Schultzberg and Sebastian Ankargren. “Resampling-free bootstrap inference for quantiles.”
@@ -513,6 +541,7 @@ def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, q:
         q (float): Quantile of interest. Defaults to 0.5
         bootstrap_conf_level (float): Confidence level. Defaults to 0.95
         number_of_bootstrap_samples (int): Number of bootstrap samples. Defaults to 10000
+        return_distribution (bool): If True, then bootstrap difference distribution will be returned. Defaults to False
         plot (bool): Plot histogram of bootstrap distribution. Defaults to False
 
     Returns:
@@ -535,7 +564,11 @@ def spotify_one_sample_bootstrap(sample: np.ndarray, sample_size: int = None, q:
         statistic = f'Quantile_{q}'
         bootstrap_plot(bootstrap_distribution, bootstrap_confidence_interval, statistic=statistic,
                        two_sample_plot=False)
-    return np.quantile(sample_sorted, q), bootstrap_confidence_interval, bootstrap_distribution
+
+    if return_distribution:
+        return np.quantile(sample_sorted, q), bootstrap_confidence_interval, bootstrap_distribution
+    else:
+        return np.quantile(sample_sorted, q), bootstrap_confidence_interval
 
 
 def poisson_bootstrap(control: np.ndarray, treatment: np.ndarray,
@@ -568,7 +601,9 @@ def poisson_bootstrap(control: np.ndarray, treatment: np.ndarray,
 def one_sample_tbootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95,
                           number_of_bootstrap_samples: int = 10000,
                           sample_size: int = None,
-                          statistic: Callable = np.mean, plot: bool = False) -> Tuple[float, np.ndarray, np.ndarray]:
+                          statistic: Callable = np.mean,
+                          return_distribution: bool = False,
+                          plot: bool = False) -> Tuple[float, np.ndarray, np.ndarray] | Tuple[float, np.ndarray]:
     """One sample Studentized t-Bootstrap
 
     Args:
@@ -580,6 +615,7 @@ def one_sample_tbootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.9
             wiil be equal to control.shape[0] and treatment.shape[0] respectively
         statistic (Callable): Statistic function. Defaults to difference_of_mean.
             Choose statistic function from compare_functions.py
+        return_distribution (bool): If True, then bootstrap difference distribution will be returned. Defaults to False
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
 
     Returns:
@@ -614,14 +650,20 @@ def one_sample_tbootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.9
     if plot:
         bootstrap_plot(bootstrap_distribution, bootstrap_confidence_interval, statistic=statistic, title='t-Bootstrap',
                        two_sample_plot=False)
-    return bootstrap_distribution_median, bootstrap_confidence_interval, bootstrap_distribution
+
+    if return_distribution:
+        return bootstrap_distribution_median, bootstrap_confidence_interval, bootstrap_distribution
+    else:
+        return bootstrap_distribution_median, bootstrap_confidence_interval
 
 
 def two_sample_tbootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_level: float = 0.95,
                           number_of_bootstrap_samples: int = 10000,
                           sample_size: int = None,
-                          statistic: Callable = difference_of_mean, plot: bool = False) -> Tuple[
-    float, float, np.ndarray, np.ndarray]:
+                          statistic: Callable = difference_of_mean,
+                          return_distribution: bool = False,
+                          plot: bool = False) -> Tuple[float, float, np.ndarray, np.ndarray] | Tuple[
+    float, float, np.ndarray]:
     """Two-sample Studentized t-Bootstrap
 
     Args:
@@ -634,6 +676,7 @@ def two_sample_tbootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_
             wiil be equal to control.shape[0] and treatment.shape[0] respectively
         statistic (Callable): Statistic function. Defaults to difference_of_mean.
             Choose statistic function from compare_functions.py
+        return_distribution (bool): If True, then bootstrap difference distribution will be returned. Defaults to False
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
 
     Returns:
@@ -670,4 +713,8 @@ def two_sample_tbootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_
     if plot:
         bootstrap_plot(bootstrap_difference_distribution, bootstrap_confidence_interval, statistic=statistic,
                        title='t-Bootstrap')
-    return p_value, bootstrap_difference_distribution_median, bootstrap_confidence_interval, bootstrap_difference_distribution
+
+    if return_distribution:
+        return p_value, bootstrap_difference_distribution_median, bootstrap_confidence_interval, bootstrap_difference_distribution
+    else:
+        return p_value, bootstrap_difference_distribution_median, bootstrap_confidence_interval
