@@ -67,61 +67,8 @@ def estimate_bin_params(sample: object) -> Tuple[float, int]:
     return bin_width, bin_count
 
 
-def compute_jackknife_distribution(control: np.ndarray, statistic: Callable = np.mean) -> np.ndarray:
-    """Returns jackknife resampled replicates for the given data and statistical function
-
-    Args:
-        control (ndarray): 1D array containing control sample
-        statistic (function): statistical function to be used for the interval
-
-    Returns:
-        ndarray: jackknife distribution
-
-    """
-
-    jack_distribution = []
-    for i in range(control.shape[0]):
-        jack_sample = np.delete(control, i)
-        jack_distribution.append(statistic(jack_sample))
-    return np.array(jack_distribution)
-
-
-def compute_a(jack_distribution: np.ndarray) -> float:
-    """Returns the acceleration constant a
-
-    Args:
-        jack_distribution (ndarray): 1D array containing jackknife distribution
-
-    Returns:
-        float: acceleration constant a
-
-    """
-    mean = np.mean(jack_distribution)
-    return (1 / 6) * np.divide(np.sum(mean - jack_distribution) ** 3,
-                               (np.sum(mean - jack_distribution) ** 2) ** (3 / 2))
-
-
-def compute_z0(control: np.ndarray, bootstrap_distribution: np.ndarray, statistic: Callable = np.mean) -> float:
-    """Computes z0 for given data and statistical function
-
-    Args:
-        control (ndarray): 1D array containing control sample
-        bootstrap_distribution (ndarray): 1D array containing bootstrap distribution
-        statistic (function): statistical function to be used for the interval
-
-    Returns:
-        float: z0 value
-
-    """
-
-    s = statistic(control)
-    return norm.ppf(np.sum(bootstrap_distribution < s) / bootstrap_distribution.shape[0])
-
-
-def compute_bca_confidence_interval(control: np.ndarray, bootstrap_distribution: np.ndarray,
-                                    bootstrap_conf_level: float = 0.95,
-                                    statistic=np.mean) -> np.ndarray:
-    """Returns BCa confidence interval for given data at given alpha level
+def bca(control, bootstrap_distribution, statistic: Callable = np.mean, boostrap_conf_level: float = 0.95):
+    """Returns BCa confidence interval for given data at given confidence level
 
     Args:
         control (ndarray): 1D array containing control sample
@@ -133,25 +80,28 @@ def compute_bca_confidence_interval(control: np.ndarray, bootstrap_distribution:
         ndarray: array with lower and upper bounds of the confidence interval
 
     """
+    number_of_bootstrap_samples = bootstrap_distribution.shape[0]
+    bootstrap_distribution_stat = statistic(bootstrap_distribution)
 
-    # Compute bootstrap and jackknife replicates
-    jack_distribution = compute_jackknife_distribution(control, statistic)
+    # alphas for the confidence interval calculation
+    alphas = np.array([(1 - boostrap_conf_level) / 2, 1 - (1 - boostrap_conf_level) / 2])
 
-    # Compute a and z0
-    a = compute_a(jack_distribution)
-    z0 = compute_z0(control, bootstrap_distribution, statistic)
+    # The bias correction value.
+    z0 = norm.ppf(np.sum(bootstrap_distribution < bootstrap_distribution_stat, axis=0) / number_of_bootstrap_samples)
 
-    # Compute confidence interval indices
-    alpha = np.array([(1 - bootstrap_conf_level) / 2, 1 - (1 - bootstrap_conf_level) / 2])
-    zs = z0 + norm.ppf(alpha).reshape(alpha.shape + (1,) * z0.ndim)
-    a = norm.cdf(z0 + zs / (1 - a * zs))
-    indices = np.round((bootstrap_distribution.shape[0] - 1) * a)
+    # Statistics of the jackknife distribution
+    jstat = [statistic(np.delete(control, i)) for i in range(control.shape[0])]
+    jmean = np.mean(jstat, axis=0)
+
+    # Acceleration value
+    a = np.divide(np.sum((jmean - jstat) ** 3, axis=0), (6.0 * np.sum((jmean - jstat) ** 2, axis=0) ** 1.5))
+
+    zs = z0 + norm.ppf(alphas).reshape(alphas.shape + (1,) * z0.ndim)
+    avals = norm.cdf(z0 + zs / (1 - a * zs))
+    indices = np.round((number_of_bootstrap_samples - 1) * avals)
     indices = np.nan_to_num(indices).astype('int')
-
-    # Compute confidence interval
     bootstrap_distribution_sorted = np.sort(bootstrap_distribution)
-    bootstrap_confidence_interval = bootstrap_distribution_sorted[indices]
-    return bootstrap_confidence_interval
+    return bootstrap_distribution_sorted[indices]
 
 
 def bootstrap_plot(bootstrap_difference_distribution: np.ndarray, bootstrap_confidence_interval: np.ndarray,
@@ -614,9 +564,8 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
     match method:
         case 'bca':
             bootstrap_distribution = bootstrap_stats
-            bootstrap_confidence_interval = compute_bca_confidence_interval(control, bootstrap_distribution,
-                                                                            bootstrap_conf_level=bootstrap_conf_level,
-                                                                            statistic=statistic)
+            bootstrap_confidence_interval = bca(control, bootstrap_distribution, statistic=statistic,
+                                                boostrap_conf_level=bootstrap_conf_level)
         case 'basic':
             bootstrap_distribution = bootstrap_stats
             percentile_bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_distribution,
