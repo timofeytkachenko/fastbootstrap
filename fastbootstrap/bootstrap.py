@@ -104,13 +104,13 @@ def bca(control, bootstrap_distribution, statistic: Callable = np.mean, boostrap
     return bootstrap_distribution_sorted[indices]
 
 
-def bootstrap_plot(bootstrap_difference_distribution: np.ndarray, bootstrap_confidence_interval: np.ndarray,
+def bootstrap_plot(bootstrap_distribution: np.ndarray, bootstrap_confidence_interval: np.ndarray,
                    statistic: Union[str, Callable] = None, title: str = 'Bootstrap',
                    two_sample_plot: bool = True) -> None:
     """Bootstrap distribution plot
 
     Args:
-        bootstrap_difference_distribution (ndarray): 1D array containing bootstrap difference distribution
+        bootstrap_distribution (ndarray): 1D array containing bootstrap distribution
         bootstrap_confidence_interval (ndarray): 1D array containing bootstrap confidence interval
         statistic (Union[str, Callable], optional): Statistic name or function. Defaults to None.
             If None, then 'Stat' will be used as xlabel; if the statistic is str, then it will be used as xlabel,
@@ -128,16 +128,15 @@ def bootstrap_plot(bootstrap_difference_distribution: np.ndarray, bootstrap_conf
     else:
         xlabel = 'Stat'
 
-    binwidth, _ = estimate_bin_params(bootstrap_difference_distribution)
-    plt.hist(bootstrap_difference_distribution,
-             bins=np.arange(bootstrap_difference_distribution.min(), bootstrap_difference_distribution.max() + binwidth,
-                            binwidth))
+    binwidth, _ = estimate_bin_params(bootstrap_distribution)
+    plt.hist(bootstrap_distribution,
+             bins=np.arange(bootstrap_distribution.min(), bootstrap_distribution.max() + binwidth, binwidth))
     plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel('Count')
     plt.axvline(x=bootstrap_confidence_interval[0], color='red', linestyle='dashed', linewidth=2)
     plt.axvline(x=bootstrap_confidence_interval[1], color='red', linestyle='dashed', linewidth=2)
-    plt.axvline(x=np.median(bootstrap_difference_distribution), color='black', linestyle='dashed', linewidth=5)
+    plt.axvline(x=np.median(bootstrap_distribution), color='black', linestyle='dashed', linewidth=5)
     if two_sample_plot:
         plt.axvline(x=0, color='white', linewidth=5)
     plt.show()
@@ -359,6 +358,28 @@ def ab_test_simulation(control: np.ndarray, treatment: np.ndarray, number_of_exp
     return ab_p_values, test_power, auc
 
 
+def plot_cdf(p_values: np.ndarray, label: str, ax: Axes, linewidth: float = 3) -> None:
+    """CFF plot function
+
+    Args:
+        p_values (ndarray): 1D array containing p-values
+        label (str): Label for the plot
+        ax (Axes): Axes object to plot on
+        linewidth (float): Linewidth for the plot. Defaults to 3
+
+    """
+
+    sorted_p_values = np.sort(p_values)
+    position = scipy.stats.rankdata(sorted_p_values, method='ordinal')
+    cdf = position / p_values.shape[0]
+
+    sorted_data = np.hstack((sorted_p_values, 1))
+    cdf = np.hstack((cdf, 1))
+
+    ax.plot([0, 1], [0, 1], linestyle='--', color='black')
+    ax.plot(sorted_data, cdf, label=label, linestyle='solid', linewidth=linewidth)
+
+
 def plot_summary(aa_p_values: np.ndarray, ab_p_values: np.ndarray):
     """Plot summary for A/A and A/B testing
 
@@ -487,28 +508,6 @@ def quantile_bootstrap_plot(control: np.ndarray, treatment: np.ndarray, n_step: 
     )
 
     fig.show()
-
-
-def plot_cdf(p_values: np.ndarray, label: str, ax: Axes, linewidth: float = 3) -> None:
-    """CFF plot function
-
-    Args:
-        p_values (ndarray): 1D array containing p-values
-        label (str): Label for the plot
-        ax (Axes): Axes object to plot on
-        linewidth (float): Linewidth for the plot. Defaults to 3
-
-    """
-
-    sorted_p_values = np.sort(p_values)
-    position = scipy.stats.rankdata(sorted_p_values, method='ordinal')
-    cdf = position / p_values.shape[0]
-
-    sorted_data = np.hstack((sorted_p_values, 1))
-    cdf = np.hstack((cdf, 1))
-
-    ax.plot([0, 1], [0, 1], linestyle='--', color='black')
-    ax.plot(sorted_data, cdf, label=label, linestyle='solid', linewidth=linewidth)
 
 
 def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95,
