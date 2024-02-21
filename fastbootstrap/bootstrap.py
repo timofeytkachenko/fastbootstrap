@@ -1,3 +1,4 @@
+import warnings
 import scipy
 import numpy as np
 import pandas as pd
@@ -67,7 +68,7 @@ def estimate_bin_params(sample: np.ndarray) -> Tuple[float, int]:
     return bin_width, bin_count
 
 
-def bca(control, bootstrap_distribution, statistic: Callable = np.mean, bootstrap_conf_level: float = 0.95):
+def bca(control, bootstrap_distribution, statistic: Callable = np.mean, bootstrap_conf_level: float = 0.95) -> np.ndarray:
     """Returns BCa confidence interval for given data at given confidence level
 
     Args:
@@ -95,6 +96,13 @@ def bca(control, bootstrap_distribution, statistic: Callable = np.mean, bootstra
 
     # Acceleration value
     a = np.divide(np.sum((jmean - jstat) ** 3, axis=0), (6.0 * np.sum((jmean - jstat) ** 2, axis=0) ** 1.5))
+
+    if np.any(np.isnan(a)):
+        nanind = np.nonzero(np.isnan(a))
+        warnings.warn(
+            f'Some acceleration values were undefined. '
+            f'This is almost certainly because all values for the statistic were equal. '
+            f'Affected confidence intervals will have zero width and may be inaccurate (indexes: {nanind})')
 
     zs = z0 + norm.ppf(alphas).reshape(alphas.shape + (1,) * z0.ndim)
     avals = norm.cdf(z0 + zs / (1 - a * zs))
@@ -376,7 +384,7 @@ def plot_cdf(p_values: np.ndarray, label: str, ax: Axes, linewidth: float = 3) -
     ax.plot(sorted_data, cdf, label=label, linestyle='solid', linewidth=linewidth)
 
 
-def plot_summary(aa_p_values: np.ndarray, ab_p_values: np.ndarray):
+def plot_summary(aa_p_values: np.ndarray, ab_p_values: np.ndarray) -> None:
     """Plot summary for A/A and A/B testing
 
     Args:
@@ -560,7 +568,7 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
         case 'bca':
             bootstrap_distribution = bootstrap_stats
             bootstrap_confidence_interval = bca(control, bootstrap_distribution, statistic=statistic,
-                                                boostrap_conf_level=bootstrap_conf_level)
+                                                bootstrap_conf_level=bootstrap_conf_level)
         case 'basic':
             bootstrap_distribution = bootstrap_stats
             percentile_bootstrap_confidence_interval = estimate_confidence_interval(bootstrap_distribution,
