@@ -8,7 +8,7 @@ def readme():
 
 setup(
     name='fastbootstrap',
-    version='1.0.16',
+    version='1.0.17',
     author='Timofey Tkachenko',
     author_email='timofey_tkachenko@pm.me',
     description='Fast Python implementation of statistical bootstrap',

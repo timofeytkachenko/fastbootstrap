@@ -10,7 +10,6 @@ def difference_of_mean(control: np.ndarray, treatment: np.ndarray) -> float:
 
     Returns:
         mean(treatment) - mean(control)
-
     """
 
     return np.mean(treatment) - np.mean(control)
@@ -18,7 +17,8 @@ def difference_of_mean(control: np.ndarray, treatment: np.ndarray) -> float:
 
 def percent_difference_of_mean(control: np.ndarray, treatment: np.ndarray) -> float:
     """Calculates percent difference of mean between control and treatment.
-        Useful when your statistics might be close to zero. Provides a symmetric result.
+    Useful when your statistics might be close to zero. Provides a symmetric
+    result.
 
     Args:
         control (ndarray): numpy array of control statistics
@@ -26,7 +26,6 @@ def percent_difference_of_mean(control: np.ndarray, treatment: np.ndarray) -> fl
 
     Returns:
         (np.mean(treatment) - np.mean(control)) / ((np.mean(control) + np.mean(treatment)) / 2.0) * 100.0
-
     """
 
     return (
@@ -59,15 +58,15 @@ def difference_of_std(control, treatment):
 
     Returns:
         std(treatment) - std(control)
-
     """
 
     return np.std(treatment) - np.std(control)
 
 
 def percent_difference_of_std(control: np.ndarray, treatment: np.ndarray) -> float:
-    """Calculates percent difference of standard deviation between control and treatment.
-        Useful when your statistics might be close to zero. Provides a symmetric result.
+    """Calculates percent difference of standard deviation between control and
+    treatment. Useful when your statistics might be close to zero. Provides a
+    symmetric result.
 
     Args:
         control (ndarray): numpy array of control statistics
@@ -75,7 +74,6 @@ def percent_difference_of_std(control: np.ndarray, treatment: np.ndarray) -> flo
 
     Returns:
         (np.std(treatment) - np.std(control)) / ((np.std(control) + np.std(treatment)) / 2.0) * 100.0
-
     """
 
     return (
@@ -94,7 +92,6 @@ def percent_change_of_std(control: np.ndarray, treatment: np.ndarray) -> float:
 
     Returns:
         (np.std(treatment) - np.std(control)) * 100.0 / abs(np.std(control))
-
     """
 
     return (np.std(treatment) - np.std(control)) * 100.0 / abs(np.std(control))
@@ -109,7 +106,6 @@ def difference_of_median(control: np.ndarray, treatment: np.ndarray) -> float:
 
     Returns:
         median(treatment) - median(control)
-
     """
 
     return np.median(treatment) - np.median(control)
@@ -117,7 +113,8 @@ def difference_of_median(control: np.ndarray, treatment: np.ndarray) -> float:
 
 def percent_difference_of_median(control: np.ndarray, treatment: np.ndarray) -> float:
     """Calculates percent difference of median between control and treatment.
-        Useful when your statistics might be close to zero. Provides a symmetric result.
+    Useful when your statistics might be close to zero. Provides a symmetric
+    result.
 
     Args:
         control (ndarray): numpy array of control statistics
@@ -125,7 +122,6 @@ def percent_difference_of_median(control: np.ndarray, treatment: np.ndarray) -> 
 
     Returns:
         (np.median(treatment) - np.median(control)) / ((np.median(control) + np.median(treatment)) / 2.0) * 100.0
-
     """
 
     return (
@@ -143,7 +139,6 @@ def percent_change_of_median(control: np.ndarray, treatment: np.ndarray) -> floa
         treatment (ndarray): numpy array of treatment statistics
 
     Returns: (np.median(treatment) - np.median(control)) * 100.0 / abs(np.median(control))
-
     """
 
     return (np.median(treatment) - np.median(control)) * 100.0 / abs(np.median(control))
@@ -158,7 +153,6 @@ def difference(control: np.ndarray, treatment: np.ndarray) -> np.ndarray:
 
     Returns:
         treatment - control
-
     """
 
     return treatment - control
@@ -173,15 +167,15 @@ def percent_change(control: np.ndarray, treatment: np.ndarray) -> np.ndarray:
 
     Returns:
         (treatment - control) / treatment * 100
-
     """
 
     return (treatment - control) * 100.0 / abs(control)
 
 
 def percent_difference(control: np.ndarray, treatment: np.ndarray) -> np.ndarray:
-    """Calculates ratio between control and treatment. Useful when your statistics
-        might be close to zero. Provides a symmetric result. Useful with Spotify Bootstrap.
+    """Calculates ratio between control and treatment. Useful when your
+    statistics might be close to zero. Provides a symmetric result. Useful with
+    Spotify Bootstrap.
 
     Args:
         control: numpy array of control statistics
@@ -189,7 +183,6 @@ def percent_difference(control: np.ndarray, treatment: np.ndarray) -> np.ndarray
 
     Returns:
         (treatment - control) / ((control + treatment) / 2.0) * 100.0
-
     """
 
     return (treatment - control) / ((control + treatment) / 2.0) * 100.0

@@ -19,7 +19,7 @@ plt.style.use("ggplot")
 def estimate_confidence_interval(
     distribution: np.ndarray, bootstrap_conf_level: float = 0.95
 ) -> np.ndarray:
-    """Estimation confidence interval of distribution
+    """Estimation confidence interval of distribution.
 
     Args:
         distribution (ndarray): 1D array containing distribution
@@ -27,7 +27,6 @@ def estimate_confidence_interval(
 
     Returns:
         ndarray: 1D array containing confidence interval
-
     """
 
     left_quant = (1 - bootstrap_conf_level) / 2
@@ -38,7 +37,7 @@ def estimate_confidence_interval(
 def estimate_p_value(
     bootstrap_difference_distribution: np.ndarray, number_of_bootstrap_samples: int
 ) -> float:
-    """P-value estimation
+    """P-value estimation.
 
     Args:
         bootstrap_difference_distribution (ndarray):  1D array containing bootstrap difference distribution
@@ -46,7 +45,6 @@ def estimate_p_value(
 
     Returns:
         float: p-value
-
     """
 
     positions = np.sum(bootstrap_difference_distribution < 0, axis=0)
@@ -58,14 +56,13 @@ def estimate_p_value(
 
 
 def estimate_bin_params(sample: np.ndarray) -> Tuple[float, int]:
-    """Estimation plot bin params
+    """Estimation plot bin params.
 
     Args:
         sample (ndarray): 1D array containing observations
 
     Returns:
         tuple(float, int): Tuple containing bin width and bin count
-
     """
 
     q1 = np.quantile(sample, 0.25)
@@ -82,7 +79,8 @@ def bca(
     statistic: Callable = np.mean,
     bootstrap_conf_level: float = 0.95,
 ) -> np.ndarray:
-    """Returns BCa confidence interval for given data at given confidence level
+    """Returns BCa confidence interval for given data at given confidence
+    level.
 
     Args:
         control (ndarray): 1D array containing control sample
@@ -92,7 +90,6 @@ def bca(
 
     Returns:
         ndarray: array with lower and upper bounds of the confidence interval
-
     """
     number_of_bootstrap_samples = bootstrap_distribution.shape[0]
     bootstrap_distribution_stat = statistic(bootstrap_distribution)
@@ -141,7 +138,7 @@ def bootstrap_plot(
     title: str = "Bootstrap",
     two_sample_plot: bool = True,
 ) -> None:
-    """Bootstrap distribution plot
+    """Bootstrap distribution plot.
 
     Args:
         bootstrap_distribution (ndarray): 1D array containing bootstrap distribution
@@ -152,7 +149,6 @@ def bootstrap_plot(
         title (str): Plot title. Defaults to 'Bootstrap'
         two_sample_plot (bool): If True, then two-sample bootstrap plot will be shown,
             it means that zero x-line will be added. Defaults to True
-
     """
 
     if isinstance(statistic, str):
@@ -201,7 +197,7 @@ def two_sample_bootstrap(
     return_distribution: bool = False,
     plot: bool = False,
 ) -> Tuple[float, float, np.ndarray, np.ndarray] | Tuple[float, float, np.ndarray]:
-    """Two-sample bootstrap
+    """Two-sample bootstrap.
 
     Args:
         control (ndarray): 1D array containing control sample
@@ -219,7 +215,6 @@ def two_sample_bootstrap(
     Returns:
         Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
             bootstrap confidence interval, bootstrap difference distribution
-
     """
 
     def sample():
@@ -281,7 +276,7 @@ def ctr_bootstrap(
     return_distribution: bool = False,
     plot: bool = False,
 ) -> Tuple[float, float, np.ndarray, np.ndarray] | Tuple[float, float, np.ndarray]:
-    """Two-sample CTR-Bootstrap
+    """Two-sample CTR-Bootstrap.
 
     In every sample global CTR will be used to difference calculation:
     global_ctr_control_sample = control_sample.clicks.sum() / control_sample.views.sum()
@@ -302,7 +297,6 @@ def ctr_bootstrap(
     Returns:
         Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
             bootstrap confidence interval, bootstrap difference distribution
-
     """
 
     def sample():
@@ -368,7 +362,7 @@ def spotify_two_sample_bootstrap(
     return_distribution: bool = False,
     plot: bool = False,
 ) -> Tuple[float, float, np.ndarray, np.ndarray] | Tuple[float, float, np.ndarray]:
-    """Two-sample Spotify-Bootstrap
+    """Two-sample Spotify-Bootstrap.
 
     Can be used for difference of quantiles, difference of means, difference of medians, etc.
     Note: Can be used with different quantiles for control and treatment samples
@@ -394,7 +388,6 @@ def spotify_two_sample_bootstrap(
     Returns:
         Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
             bootstrap confidence interval, bootstrap difference distribution
-
     """
 
     if sample_size:
@@ -452,7 +445,7 @@ def ab_test_simulation(
     number_of_experiments: int = 2000,
     stat_test: Callable = ttest_ind,
 ) -> Tuple[np.ndarray, float, float]:
-    """A/B test simulation
+    """A/B test simulation.
 
     Args:
         control (ndarray): 1D array containing control sample
@@ -462,7 +455,6 @@ def ab_test_simulation(
 
     Returns:
         Tuple[np.ndarray, float, float]: Tuple containing p-values, test power and AUC
-
     """
 
     def experiment():
@@ -490,14 +482,13 @@ def ab_test_simulation(
 
 
 def plot_cdf(p_values: np.ndarray, label: str, ax: Axes, linewidth: float = 3) -> None:
-    """CFF plot function
+    """CFF plot function.
 
     Args:
         p_values (ndarray): 1D array containing p-values
         label (str): Label for the plot
         ax (Axes): Axes object to plot on
         linewidth (float): Linewidth for the plot. Defaults to 3
-
     """
 
     sorted_p_values = np.sort(p_values)
@@ -512,12 +503,11 @@ def plot_cdf(p_values: np.ndarray, label: str, ax: Axes, linewidth: float = 3) -
 
 
 def plot_summary(aa_p_values: np.ndarray, ab_p_values: np.ndarray) -> None:
-    """Plot summary for A/A and A/B testing
+    """Plot summary for A/A and A/B testing.
 
     Args:
         aa_p_values (ndarray): 1D array containing A/A p-values
         ab_p_values (ndarray): 1D array containing A/B p-values
-
     """
 
     cdf_h0_title = "Simulated p-value CDFs under H0 (FPR)"
@@ -563,7 +553,7 @@ def quantile_bootstrap_plot(
     statistic: Callable = difference,
     correction: str = "bh",
 ) -> None:
-    """Quantile Bootstrap Plot
+    """Quantile Bootstrap Plot.
 
     Args:
         control (ndarray): 1D array containing control sample
@@ -574,7 +564,6 @@ def quantile_bootstrap_plot(
         bootstrap_conf_level (float): Confidence level. Defaults to 0.95
         statistic (Callable): Statistic function. Defaults to difference.
         correction (str): Correction method. Defaults to 'bh'
-
     """
 
     quantiles_to_compare = np.linspace(q1, q2, n_step)
@@ -681,7 +670,7 @@ def one_sample_bootstrap(
     return_distribution: bool = False,
     plot: bool = False,
 ) -> Tuple[float, np.ndarray, np.ndarray] | Tuple[float, np.ndarray]:
-    """One sample bootstrap
+    """One sample bootstrap.
 
     Args:
         control (ndarray): 1D array containing control sample
@@ -699,7 +688,6 @@ def one_sample_bootstrap(
     Returns:
         Tuple[float, ndarray, ndarray]: Tuple containing difference distribution statistic,
             bootstrap confidence interval, bootstrap difference distribution
-
     """
 
     def sample():
@@ -800,7 +788,7 @@ def spotify_one_sample_bootstrap(
     return_distribution: bool = False,
     plot=False,
 ) -> Tuple[float, np.ndarray, np.ndarray] | Tuple[float, np.ndarray]:
-    """One-sample Spotify-Bootstrap
+    """One-sample Spotify-Bootstrap.
 
     Mårten Schultzberg and Sebastian Ankargren. “Resampling-free bootstrap inference for quantiles.”
     arXiv e-prints, art. arXiv:2202.10992, (2022). https://arxiv.org/abs/2202.10992
@@ -816,7 +804,6 @@ def spotify_one_sample_bootstrap(
 
     Returns:
         Tuple[float, ndarray, ndarray]: Tuple containing quantile of interest, bootstrap confidence interval and bootstrap distribution
-
     """
 
     if not sample_size:
@@ -854,7 +841,7 @@ def spotify_one_sample_bootstrap(
 def poisson_bootstrap(
     control: np.ndarray, treatment: np.ndarray, number_of_bootstrap_samples: int = 10000
 ) -> float:
-    """Simple Poisson Bootstrap
+    """Simple Poisson Bootstrap.
 
     Args:
         control (ndarray): 1D array containing control sample
@@ -863,7 +850,6 @@ def poisson_bootstrap(
 
     Returns:
         float: p-value
-
     """
 
     sample_size = np.min([control.shape[0], treatment.shape[0]])
