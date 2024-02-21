@@ -167,7 +167,7 @@ def percent_change(control: np.ndarray, treatment: np.ndarray) -> np.ndarray:
     return (treatment - control) * 100.0 / abs(control)
 
 
-def percent_difference(control:np.ndarray, treatment:np.ndarray) -> np.ndarray:
+def percent_difference(control: np.ndarray, treatment: np.ndarray) -> np.ndarray:
     """Calculates ratio between control and treatment. Useful when your statistics
         might be close to zero. Provides a symmetric result. Useful with Spotify Bootstrap.
 

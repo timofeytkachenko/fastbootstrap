@@ -48,7 +48,7 @@ def estimate_p_value(bootstrap_difference_distribution: np.ndarray, number_of_bo
     return 2 * np.minimum(positions, number_of_bootstrap_samples - positions) / number_of_bootstrap_samples
 
 
-def estimate_bin_params(sample: object) -> Tuple[float, int]:
+def estimate_bin_params(sample: np.ndarray) -> Tuple[float, int]:
     """Estimation plot bin params
 
     Args:
@@ -67,7 +67,7 @@ def estimate_bin_params(sample: object) -> Tuple[float, int]:
     return bin_width, bin_count
 
 
-def bca(control, bootstrap_distribution, statistic: Callable = np.mean, boostrap_conf_level: float = 0.95):
+def bca(control, bootstrap_distribution, statistic: Callable = np.mean, bootstrap_conf_level: float = 0.95):
     """Returns BCa confidence interval for given data at given confidence level
 
     Args:
@@ -84,7 +84,7 @@ def bca(control, bootstrap_distribution, statistic: Callable = np.mean, boostrap
     bootstrap_distribution_stat = statistic(bootstrap_distribution)
 
     # alphas for the confidence interval calculation
-    alphas = np.array([(1 - boostrap_conf_level) / 2, 1 - (1 - boostrap_conf_level) / 2])
+    alphas = np.array([(1 - bootstrap_conf_level) / 2, 1 - (1 - bootstrap_conf_level) / 2])
 
     # The bias correction value.
     z0 = norm.ppf(np.sum(bootstrap_distribution < bootstrap_distribution_stat, axis=0) / number_of_bootstrap_samples)
@@ -147,8 +147,7 @@ def two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_c
                          sample_size: int = None,
                          statistic: Callable = difference_of_mean,
                          return_distribution: bool = False,
-                         plot: bool = False) -> Tuple[float, float, np.ndarray, np.ndarray] | Tuple[
-    float, float, np.ndarray]:
+                         plot: bool = False) -> Tuple[float, float, np.ndarray, np.ndarray] | Tuple[float, float, np.ndarray]:
     """Two-sample bootstrap
 
     Args:
@@ -158,7 +157,7 @@ def two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_c
         number_of_bootstrap_samples (int): Number of bootstrap samples
         sample_size (int): Sample size. Defaults to None. If None,
             then control_sample_size and treatment_sample_size
-            wiil be equal to control.shape[0] and treatment.shape[0] respectively
+            will be equal to control.shape[0] and treatment.shape[0] respectively
         statistic (Callable): Statistic function. Defaults to difference_of_mean.
             Choose statistic function from compare_functions.py
         return_distribution (bool): If True, then bootstrap difference distribution will be returned. Defaults to False
@@ -219,9 +218,7 @@ def ctr_bootstrap(control: np.ndarray, treatment: np.ndarray, bootstrap_conf_lev
         number_of_bootstrap_samples (int): Number of bootstrap samples
         sample_size (int): Sample size. Defaults to None. If None,
             then control_sample_size and treatment_sample_size
-            wiil be equal to control.shape[0] and treatment.shape[0] respectively
-        statistic (Callable): Statistic function. Defaults to difference_of_mean.
-            Choose statistic function from compare_functions.py
+            will be equal to control.shape[0] and treatment.shape[0] respectively
         return_distribution (bool): If True, then bootstrap difference distribution will be returned. Defaults to False
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
 
@@ -267,8 +264,7 @@ def spotify_two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, num
                                  statistic: Callable = difference,
                                  bootstrap_conf_level: float = 0.95,
                                  return_distribution: bool = False,
-                                 plot: bool = False) -> Tuple[float, float, np.ndarray, np.ndarray] | Tuple[
-    float, float, np.ndarray]:
+                                 plot: bool = False) -> Tuple[float, float, np.ndarray, np.ndarray] | Tuple[float, float, np.ndarray]:
     """Two-sample Spotify-Bootstrap
 
     Can be used for difference of quantiles, difference of means, difference of medians, etc.
@@ -284,7 +280,7 @@ def spotify_two_sample_bootstrap(control: np.ndarray, treatment: np.ndarray, num
         number_of_bootstrap_samples (int): Number of bootstrap samples
         sample_size (int): Sample size. Defaults to None. If None,
             then control_sample_size and treatment_sample_size
-            wil be equal to control.shape[0] and treatment.shape[0] respectively
+            will be equal to control.shape[0] and treatment.shape[0] respectively
         q1 (float): Quantile of interest for control sample. Defaults to 0.5
         q2 (float): Quantile of interest for treatment sample. Defaults to 0.5
         statistic (Callable): Statistic function. Defaults to difference.
@@ -385,7 +381,7 @@ def plot_summary(aa_p_values: np.ndarray, ab_p_values: np.ndarray):
 
     Args:
         aa_p_values (ndarray): 1D array containing A/A p-values
-        treatment (ndarray): 1D array containing A/B p-values
+        ab_p_values (ndarray): 1D array containing A/B p-values
 
     """
 
@@ -525,7 +521,7 @@ def one_sample_bootstrap(control: np.ndarray, bootstrap_conf_level: float = 0.95
         number_of_bootstrap_samples (int): Number of bootstrap samples
         sample_size (int): Sample size. Defaults to None. If None,
             then control_sample_size and treatment_sample_size
-            wiil be equal to control.shape[0] and treatment.shape[0] respectively
+            will be equal to control.shape[0] and treatment.shape[0] respectively
         statistic (Callable): Statistic function. Defaults to difference_of_mean.
             Choose statistic function from compare_functions.py
         method (str): Bootstrap method. Defaults to 'percentile'. Choose from 'bca', 'basic', 'percentile', 'studentized'
