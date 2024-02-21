@@ -29,7 +29,11 @@ def percent_difference_of_mean(control: np.ndarray, treatment: np.ndarray) -> fl
 
     """
 
-    return (np.mean(treatment) - np.mean(control)) / ((np.mean(control) + np.mean(treatment)) / 2.0) * 100.0
+    return (
+        (np.mean(treatment) - np.mean(control))
+        / ((np.mean(control) + np.mean(treatment)) / 2.0)
+        * 100.0
+    )
 
 
 def percent_change_of_mean(control: np.ndarray, treatment: np.ndarray) -> float:
@@ -74,7 +78,11 @@ def percent_difference_of_std(control: np.ndarray, treatment: np.ndarray) -> flo
 
     """
 
-    return (np.std(treatment) - np.std(control)) / ((np.std(control) + np.std(treatment)) / 2.0) * 100.0
+    return (
+        (np.std(treatment) - np.std(control))
+        / ((np.std(control) + np.std(treatment)) / 2.0)
+        * 100.0
+    )
 
 
 def percent_change_of_std(control: np.ndarray, treatment: np.ndarray) -> float:
@@ -120,7 +128,11 @@ def percent_difference_of_median(control: np.ndarray, treatment: np.ndarray) -> 
 
     """
 
-    return (np.median(treatment) - np.median(control)) / ((np.median(control) + np.median(treatment)) / 2.0) * 100.0
+    return (
+        (np.median(treatment) - np.median(control))
+        / ((np.median(control) + np.median(treatment)) / 2.0)
+        * 100.0
+    )
 
 
 def percent_change_of_median(control: np.ndarray, treatment: np.ndarray) -> float:
