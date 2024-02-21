@@ -131,6 +131,30 @@ def bca(
     return bootstrap_distribution_sorted[indices]
 
 
+def bootstrap_resampling(
+    sample_function: Callable, number_of_bootstrap_samples: int
+) -> np.ndarray:
+    """Bootstrap resampling.
+
+    Args:
+        sample_function (Callable): Function to be used for resampling
+        number_of_bootstrap_samples (int): Number of bootstrap samples
+
+    Returns:
+        np.ndarray: 1D array containing bootstrap distribution
+    """
+
+    generator = np.random.Generator(np.random.PCG64())
+    pool = ThreadPool(cpu_count())
+    bootstrap_results = np.array(
+        pool.map(
+            sample_function, [generator for i in range(number_of_bootstrap_samples)]
+        )
+    )
+    pool.close()
+    return bootstrap_results
+
+
 def bootstrap_plot(
     bootstrap_distribution: np.ndarray,
     bootstrap_confidence_interval: np.ndarray,
@@ -217,7 +241,7 @@ def two_sample_bootstrap(
             bootstrap confidence interval, bootstrap difference distribution
     """
 
-    def sample():
+    def sample(generator):
         control_sample = control[
             generator.choice(control.shape[0], control_sample_size, replace=True)
         ]
@@ -234,13 +258,9 @@ def two_sample_bootstrap(
             treatment.shape[0],
         )
 
-    generator = np.random.Generator(np.random.PCG64())
-    pool = ThreadPool(cpu_count())
-    bootstrap_difference_distribution = np.array(
-        pool.starmap(sample, [() for i in range(number_of_bootstrap_samples)])
+    bootstrap_difference_distribution = bootstrap_resampling(
+        sample, number_of_bootstrap_samples
     )
-    pool.close()
-
     bootstrap_confidence_interval = estimate_confidence_interval(
         bootstrap_difference_distribution, bootstrap_conf_level
     )
@@ -299,7 +319,7 @@ def ctr_bootstrap(
             bootstrap confidence interval, bootstrap difference distribution
     """
 
-    def sample():
+    def sample(generator):
         control_sample = control.sample(control_sample_size, replace=True)
         treatment_sample = treatment.sample(treatment_sample_size, replace=True)
         global_ctr_control_sample = (
@@ -318,11 +338,9 @@ def ctr_bootstrap(
             treatment.shape[0],
         )
 
-    pool = ThreadPool(cpu_count())
-    bootstrap_difference_distribution = np.array(
-        pool.starmap(sample, [() for i in range(number_of_bootstrap_samples)])
+    bootstrap_difference_distribution = bootstrap_resampling(
+        sample, number_of_bootstrap_samples
     )
-    pool.close()
 
     bootstrap_confidence_interval = estimate_confidence_interval(
         bootstrap_difference_distribution, bootstrap_conf_level
@@ -690,7 +708,7 @@ def one_sample_bootstrap(
             bootstrap confidence interval, bootstrap difference distribution
     """
 
-    def sample():
+    def sample(generator):
         control_sample = control[
             generator.choice(control.shape[0], size=sample_size, replace=True)
         ]
@@ -707,16 +725,8 @@ def one_sample_bootstrap(
         )
 
     sample_size = sample_size if sample_size else control.shape[0]
-
-    generator = np.random.Generator(np.random.PCG64())
-    pool = ThreadPool(cpu_count())
-    bootstrap_stats = np.array(
-        pool.starmap(sample, [() for i in range(number_of_bootstrap_samples)])
-    )
-    pool.close()
-
+    bootstrap_stats = bootstrap_resampling(sample, number_of_bootstrap_samples)
     sample_stat = statistic(control)
-
     match method:
         case "bca":
             bootstrap_distribution = bootstrap_stats
