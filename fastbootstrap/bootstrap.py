@@ -11,7 +11,7 @@ from multiprocessing import cpu_count
 from multiprocessing.pool import ThreadPool
 from .compare_functions import difference_of_mean, difference
 from scipy.stats import ttest_ind
-from typing import Tuple, Union, Callable
+from typing import Tuple, Union, Callable, Iterator
 
 plt.style.use("ggplot")
 
@@ -73,9 +73,23 @@ def estimate_bin_params(sample: np.ndarray) -> Tuple[float, int]:
     return bin_width, bin_count
 
 
+def jackknife_indices(control: np.ndarray) -> Iterator[np.ndarray]:
+    """Returns Jackknife indexes.
+
+    Args:
+        control (ndarray): 1D array containing control sample
+
+    Returns:
+        generator: generator of indices
+    """
+
+    base = np.arange(0, len(control))
+    return (np.delete(base, i) for i in base)
+
+
 def bca(
-    control,
-    bootstrap_distribution,
+    control: np.ndarray,
+    bootstrap_distribution: np.ndarray,
     statistic: Callable = np.mean,
     bootstrap_conf_level: float = 0.95,
 ) -> np.ndarray:
@@ -91,8 +105,9 @@ def bca(
     Returns:
         ndarray: array with lower and upper bounds of the confidence interval
     """
+
     number_of_bootstrap_samples = bootstrap_distribution.shape[0]
-    bootstrap_distribution_stat = statistic(bootstrap_distribution)
+    sample_stat = statistic(control)
 
     # alphas for the confidence interval calculation
     alphas = np.array(
@@ -101,12 +116,13 @@ def bca(
 
     # The bias correction value.
     z0 = norm.ppf(
-        np.sum(bootstrap_distribution < bootstrap_distribution_stat, axis=0)
+        np.sum(bootstrap_distribution < sample_stat, axis=0)
         / number_of_bootstrap_samples
     )
 
     # Statistics of the jackknife distribution
-    jstat = [statistic(np.delete(control, i)) for i in range(control.shape[0])]
+    jackindexes = jackknife_indices(control)
+    jstat = [statistic(control[indices]) for indices in jackindexes]
     jmean = np.mean(jstat, axis=0)
 
     # Acceleration value
