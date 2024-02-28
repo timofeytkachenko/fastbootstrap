@@ -11,7 +11,7 @@ from multiprocessing import cpu_count
 from multiprocessing.pool import ThreadPool
 from .compare_functions import difference_of_mean, difference
 from scipy.stats import ttest_ind
-from typing import Tuple, Union, Callable, Iterator
+from typing import Optional, Tuple, Union, Callable, Iterator
 
 plt.style.use("ggplot")
 
@@ -80,7 +80,7 @@ def jackknife_indices(control: np.ndarray) -> Iterator[np.ndarray]:
         control (ndarray): 1D array containing control sample
 
     Returns:
-        generator: generator of indices
+        Iterator[np.ndarray]: generator expression containing jackknife indexes
     """
 
     base = np.arange(0, len(control))
@@ -174,7 +174,7 @@ def bootstrap_resampling(
 def bootstrap_plot(
     bootstrap_distribution: np.ndarray,
     bootstrap_confidence_interval: np.ndarray,
-    statistic: Union[str, Callable] = None,
+    statistic: Optional[Union[str, Callable]] = None,
     title: str = "Bootstrap",
     two_sample_plot: bool = True,
 ) -> None:
@@ -183,7 +183,7 @@ def bootstrap_plot(
     Args:
         bootstrap_distribution (ndarray): 1D array containing bootstrap distribution
         bootstrap_confidence_interval (ndarray): 1D array containing bootstrap confidence interval
-        statistic (Union[str, Callable], optional): Statistic name or function. Defaults to None.
+        statistic (Optional[Union[str, Callable]]): Statistic name or function. Defaults to None.
             If None, then 'Stat' will be used as xlabel; if the statistic is str, then it will be used as xlabel,
             else if statistic is function then formated function name will be used as xlabel
         title (str): Plot title. Defaults to 'Bootstrap'
@@ -232,11 +232,13 @@ def two_sample_bootstrap(
     treatment: np.ndarray,
     bootstrap_conf_level: float = 0.95,
     number_of_bootstrap_samples: int = 10000,
-    sample_size: int = None,
+    sample_size: Optional[int] = None,
     statistic: Callable = difference_of_mean,
     return_distribution: bool = False,
     plot: bool = False,
-) -> Tuple[float, float, np.ndarray, np.ndarray] | Tuple[float, float, np.ndarray]:
+) -> Union[
+    Tuple[float, float, np.ndarray, np.ndarray], Tuple[float, float, np.ndarray]
+]:
     """Two-sample bootstrap.
 
     Args:
@@ -244,7 +246,7 @@ def two_sample_bootstrap(
         treatment (ndarray): 1D array containing treatment sample
         bootstrap_conf_level (float): Confidence level
         number_of_bootstrap_samples (int): Number of bootstrap samples
-        sample_size (int): Sample size. Defaults to None. If None,
+        sample_size (Optional[int]): Sample size. Defaults to None. If None,
             then control_sample_size and treatment_sample_size
             will be equal to control.shape[0] and treatment.shape[0] respectively
         statistic (Callable): Statistic function. Defaults to difference_of_mean.
@@ -253,8 +255,11 @@ def two_sample_bootstrap(
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
 
     Returns:
-        Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
-            bootstrap confidence interval, bootstrap difference distribution
+        Union[Tuple[float, float, np.ndarray, np.ndarray], Tuple[float, float, np.ndarray]]: Tuple containing p-value,
+            difference distribution statistic, bootstrap confidence interval,
+            bootstrap difference distribution (return_distribution=True)
+            or p-value, difference distribution statistic, bootstrap confidence interval
+            without difference distribution (return_distribution=False)
     """
 
     def sample(generator):
@@ -308,10 +313,12 @@ def ctr_bootstrap(
     treatment: np.ndarray,
     bootstrap_conf_level: float = 0.95,
     number_of_bootstrap_samples: int = 10000,
-    sample_size: int = None,
+    sample_size: Optional[int] = None,
     return_distribution: bool = False,
     plot: bool = False,
-) -> Tuple[float, float, np.ndarray, np.ndarray] | Tuple[float, float, np.ndarray]:
+) -> Union[
+    Tuple[float, float, np.ndarray, np.ndarray], Tuple[float, float, np.ndarray]
+]:
     """Two-sample CTR-Bootstrap.
 
     In every sample global CTR will be used to difference calculation:
@@ -324,15 +331,18 @@ def ctr_bootstrap(
         treatment (ndarray): 1D array containing treatment sample
         bootstrap_conf_level (float): Confidence level
         number_of_bootstrap_samples (int): Number of bootstrap samples
-        sample_size (int): Sample size. Defaults to None. If None,
+        sample_size (Optional[int]): Sample size. Defaults to None. If None,
             then control_sample_size and treatment_sample_size
             will be equal to control.shape[0] and treatment.shape[0] respectively
         return_distribution (bool): If True, then bootstrap difference distribution will be returned. Defaults to False
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
 
     Returns:
-        Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
-            bootstrap confidence interval, bootstrap difference distribution
+        Union[Tuple[float, float, np.ndarray, np.ndarray], Tuple[float, float, np.ndarray]]: Tuple containing p-value,
+            difference distribution statistic, bootstrap confidence interval,
+            bootstrap difference distribution (return_distribution=True)
+            or p-value, difference distribution statistic, bootstrap confidence interval
+            without difference distribution (return_distribution=False)
     """
 
     def sample(generator):
@@ -388,9 +398,9 @@ def spotify_two_sample_bootstrap(
     control: np.ndarray,
     treatment: np.ndarray,
     number_of_bootstrap_samples: int = 10000,
-    sample_size: int = None,
+    sample_size: Optional[int] = None,
     q1: float = 0.5,
-    q2: float = None,
+    q2: Optional[float] = None,
     statistic: Callable = difference,
     bootstrap_conf_level: float = 0.95,
     return_distribution: bool = False,
@@ -409,19 +419,22 @@ def spotify_two_sample_bootstrap(
         treatment (ndarray): 1D array containing treatment sample
         bootstrap_conf_level (float): Confidence level
         number_of_bootstrap_samples (int): Number of bootstrap samples
-        sample_size (int): Sample size. Defaults to None. If None,
+        sample_size (Optional[int]): Sample size. Defaults to None. If None,
             then control_sample_size and treatment_sample_size
             will be equal to control.shape[0] and treatment.shape[0] respectively
         q1 (float): Quantile of interest for control sample. Defaults to 0.5
-        q2 (float): Quantile of interest for treatment sample. Defaults to 0.5
+        q2 (Optional[float]): Quantile of interest for treatment sample. Defaults to 0.5
         statistic (Callable): Statistic function. Defaults to difference.
             Choose statistic function from compare_functions.py
         return_distribution (bool): If True, then bootstrap difference distribution will be returned. Defaults to False
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
 
     Returns:
-        Tuple[float, float, ndarray, ndarray]: Tuple containing p-value, difference distribution statistic,
-            bootstrap confidence interval, bootstrap difference distribution
+        Union[Tuple[float, float, np.ndarray, np.ndarray], Tuple[float, float, np.ndarray]]: Tuple containing p-value,
+            difference distribution statistic, bootstrap confidence interval,
+            bootstrap difference distribution (return_distribution=True)
+            or p-value, difference distribution statistic, bootstrap confidence interval
+            without difference distribution (return_distribution=False)
     """
 
     if sample_size:
@@ -698,19 +711,19 @@ def one_sample_bootstrap(
     control: np.ndarray,
     bootstrap_conf_level: float = 0.95,
     number_of_bootstrap_samples: int = 10000,
-    sample_size: int = None,
+    sample_size: Optional[int] = None,
     statistic: Callable = np.mean,
     method: str = "percentile",
     return_distribution: bool = False,
     plot: bool = False,
-) -> Tuple[float, np.ndarray, np.ndarray] | Tuple[float, np.ndarray]:
+) -> Union[Tuple[float, np.ndarray, np.ndarray], Tuple[float, np.ndarray]]:
     """One sample bootstrap.
 
     Args:
         control (ndarray): 1D array containing control sample
         bootstrap_conf_level (float): Confidence level
         number_of_bootstrap_samples (int): Number of bootstrap samples
-        sample_size (int): Sample size. Defaults to None. If None,
+        sample_size (Optional[int]): Sample size. Defaults to None. If None,
             then control_sample_size and treatment_sample_size
             will be equal to control.shape[0] and treatment.shape[0] respectively
         statistic (Callable): Statistic function. Defaults to difference_of_mean.
@@ -720,8 +733,10 @@ def one_sample_bootstrap(
         plot (bool): If True, then bootstrap plot will be shown. Defaults to True
 
     Returns:
-        Tuple[float, ndarray, ndarray]: Tuple containing difference distribution statistic,
-            bootstrap confidence interval, bootstrap difference distribution
+        Union[Tuple[float, np.ndarray, np.ndarray], Tuple[float, np.ndarray]]: Tuple containing bootstrap distribution
+        statistic, bootstrap confidence interval, bootstrap distribution (return_distribution=True)
+        or bootstrap distribution statistic, bootstrap confidence interval
+        without bootstrap distribution (return_distribution=False)
     """
 
     def sample(generator):
@@ -807,13 +822,13 @@ def one_sample_bootstrap(
 
 def spotify_one_sample_bootstrap(
     sample: np.ndarray,
-    sample_size: int = None,
+    sample_size: Optional[int] = None,
     q: float = 0.5,
     bootstrap_conf_level: float = 0.95,
     number_of_bootstrap_samples: int = 10000,
     return_distribution: bool = False,
     plot=False,
-) -> Tuple[float, np.ndarray, np.ndarray] | Tuple[float, np.ndarray]:
+) -> Union[Tuple[float, np.ndarray, np.ndarray], Tuple[float, np.ndarray]]:
     """One-sample Spotify-Bootstrap.
 
     Mårten Schultzberg and Sebastian Ankargren. “Resampling-free bootstrap inference for quantiles.”
@@ -821,7 +836,7 @@ def spotify_one_sample_bootstrap(
 
     Args:
         sample (ndarray): 1D array containing sample
-        sample_size (int): sample size. Defaults to None
+        sample_size (Optional[int]): sample size. Defaults to None
         q (float): Quantile of interest. Defaults to 0.5
         bootstrap_conf_level (float): Confidence level. Defaults to 0.95
         number_of_bootstrap_samples (int): Number of bootstrap samples. Defaults to 10000
@@ -829,7 +844,10 @@ def spotify_one_sample_bootstrap(
         plot (bool): Plot histogram of bootstrap distribution. Defaults to False
 
     Returns:
-        Tuple[float, ndarray, ndarray]: Tuple containing quantile of interest, bootstrap confidence interval and bootstrap distribution
+        Union[Tuple[float, np.ndarray, np.ndarray], Tuple[float, np.ndarray]]: Tuple containing bootstrap distribution
+        statistic, bootstrap confidence interval, bootstrap distribution (return_distribution=True)
+        or bootstrap distribution statistic, bootstrap confidence interval
+        without bootstrap distribution (return_distribution=False)
     """
 
     if not sample_size:

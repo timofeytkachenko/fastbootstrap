@@ -9,7 +9,7 @@ def difference_of_mean(control: np.ndarray, treatment: np.ndarray) -> float:
         treatment (ndarray)t: numpy array of treatment statistics
 
     Returns:
-        mean(treatment) - mean(control)
+        float: mean(treatment) - mean(control)
     """
 
     return np.mean(treatment) - np.mean(control)
@@ -25,7 +25,7 @@ def percent_difference_of_mean(control: np.ndarray, treatment: np.ndarray) -> fl
         treatment (ndarray): numpy array of treatment statistics
 
     Returns:
-        (np.mean(treatment) - np.mean(control)) / ((np.mean(control) + np.mean(treatment)) / 2.0) * 100.0
+        float: (np.mean(treatment) - np.mean(control)) / ((np.mean(control) + np.mean(treatment)) / 2.0) * 100.0
     """
 
     return (
@@ -42,7 +42,7 @@ def percent_change_of_mean(control: np.ndarray, treatment: np.ndarray) -> float:
         treatment (ndarray): numpy array of treatment statistics
 
     Returns:
-        (np.mean(treatment) - np.mean(control)) * 100.0 / abs(np.mean(control))
+        float: (np.mean(treatment) - np.mean(control)) * 100.0 / abs(np.mean(control))
 
     """
 
@@ -57,7 +57,7 @@ def difference_of_std(control, treatment):
         treatment (ndarray): numpy array of treatment statistics
 
     Returns:
-        std(treatment) - std(control)
+        float: std(treatment) - std(control)
     """
 
     return np.std(treatment) - np.std(control)
@@ -73,7 +73,7 @@ def percent_difference_of_std(control: np.ndarray, treatment: np.ndarray) -> flo
         treatment (ndarray): numpy array of treatment statistics
 
     Returns:
-        (np.std(treatment) - np.std(control)) / ((np.std(control) + np.std(treatment)) / 2.0) * 100.0
+        float: (np.std(treatment) - np.std(control)) / ((np.std(control) + np.std(treatment)) / 2.0) * 100.0
     """
 
     return (
@@ -91,7 +91,7 @@ def percent_change_of_std(control: np.ndarray, treatment: np.ndarray) -> float:
         treatment (ndarray): numpy array of treatment statistics
 
     Returns:
-        (np.std(treatment) - np.std(control)) * 100.0 / abs(np.std(control))
+        float: (np.std(treatment) - np.std(control)) * 100.0 / abs(np.std(control))
     """
 
     return (np.std(treatment) - np.std(control)) * 100.0 / abs(np.std(control))
@@ -105,7 +105,7 @@ def difference_of_median(control: np.ndarray, treatment: np.ndarray) -> float:
         treatment (ndarray): numpy array of treatment statistics
 
     Returns:
-        median(treatment) - median(control)
+        float: median(treatment) - median(control)
     """
 
     return np.median(treatment) - np.median(control)
@@ -121,7 +121,7 @@ def percent_difference_of_median(control: np.ndarray, treatment: np.ndarray) -> 
         treatment (ndarray): numpy array of treatment statistics
 
     Returns:
-        (np.median(treatment) - np.median(control)) / ((np.median(control) + np.median(treatment)) / 2.0) * 100.0
+        float: (np.median(treatment) - np.median(control)) / ((np.median(control) + np.median(treatment)) / 2.0) * 100.0
     """
 
     return (
@@ -138,7 +138,8 @@ def percent_change_of_median(control: np.ndarray, treatment: np.ndarray) -> floa
         control (ndarray): numpy array of control statistics
         treatment (ndarray): numpy array of treatment statistics
 
-    Returns: (np.median(treatment) - np.median(control)) * 100.0 / abs(np.median(control))
+    Returns:
+        float: (np.median(treatment) - np.median(control)) * 100.0 / abs(np.median(control))
     """
 
     return (np.median(treatment) - np.median(control)) * 100.0 / abs(np.median(control))
@@ -152,7 +153,7 @@ def difference(control: np.ndarray, treatment: np.ndarray) -> np.ndarray:
         treatment (ndarray): numpy array of treatment statistics
 
     Returns:
-        treatment - control
+        ndarray: treatment - control
     """
 
     return treatment - control
@@ -166,7 +167,7 @@ def percent_change(control: np.ndarray, treatment: np.ndarray) -> np.ndarray:
         treatment (ndarray): numpy array of treatment statistics
 
     Returns:
-        (treatment - control) / treatment * 100
+        ndarray: (treatment - control) / treatment * 100
     """
 
     return (treatment - control) * 100.0 / abs(control)
@@ -182,7 +183,7 @@ def percent_difference(control: np.ndarray, treatment: np.ndarray) -> np.ndarray
         treatment: numpy array of treatment statistics
 
     Returns:
-        (treatment - control) / ((control + treatment) / 2.0) * 100.0
+        ndarray: (treatment - control) / ((control + treatment) / 2.0) * 100.0
     """
 
     return (treatment - control) / ((control + treatment) / 2.0) * 100.0
