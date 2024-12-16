@@ -7,11 +7,10 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from scipy.stats import norm, binom
 from numpy.random import binomial
-from multiprocessing import cpu_count
-from multiprocessing.pool import ThreadPool
 from .compare_functions import difference_of_mean, difference
 from scipy.stats import ttest_ind
 from typing import Optional, Tuple, Union, Callable, Iterator
+from joblib import Parallel, delayed
 
 plt.style.use("ggplot")
 
@@ -148,27 +147,45 @@ def bca(
 
 
 def bootstrap_resampling(
-    sample_function: Callable, number_of_bootstrap_samples: int
+    sample_function: Callable[[np.random.Generator], float],
+    number_of_bootstrap_samples: int,
+    seed: Optional[int] = None,
+    n_jobs: int = -1,
 ) -> np.ndarray:
-    """Bootstrap resampling.
-
-    Args:
-        sample_function (Callable): Function to be used for resampling
-        number_of_bootstrap_samples (int): Number of bootstrap samples
-
-    Returns:
-        np.ndarray: 1D array containing bootstrap distribution
     """
+    Bootstrap resampling with independent random generators per sample using joblib for parallelism.
 
-    generator = np.random.Generator(np.random.PCG64())
-    pool = ThreadPool(cpu_count())
-    bootstrap_results = np.array(
-        pool.map(
-            sample_function, [generator for i in range(number_of_bootstrap_samples)]
-        )
+    Parameters
+    ----------
+    sample_function : Callable[[Generator], float]
+        A function that takes a numpy Generator and returns a bootstrap statistic.
+    number_of_bootstrap_samples : int
+        Number of bootstrap samples to draw.
+    seed : Optional[int], default None
+        Seed for reproducibility. If None, a random seed will be used.
+    n_jobs : int, default -1
+        The number of jobs to run in parallel. -1 means using all available cores.
+
+    Returns
+    -------
+    np.ndarray
+        1D array of bootstrap samples.
+    """
+    # Create a base seed sequence to ensure reproducibility if seed is given
+    base_seed = np.random.SeedSequence(seed)
+
+    # Spawn a unique SeedSequence for each bootstrap sample to ensure independent random draws
+    seeds = base_seed.spawn(number_of_bootstrap_samples)
+
+    # Create a separate Generator for each bootstrap sample
+    rngs = [np.random.Generator(np.random.PCG64(s)) for s in seeds]
+
+    # Use joblib.Parallel for concurrent execution
+    bootstrap_results = Parallel(n_jobs=n_jobs)(
+        delayed(sample_function)(rng) for rng in rngs
     )
-    pool.close()
-    return bootstrap_results
+
+    return np.array(bootstrap_results)
 
 
 def bootstrap_plot(
@@ -262,7 +279,7 @@ def two_sample_bootstrap(
             without difference distribution (return_distribution=False)
     """
 
-    def sample(generator):
+    def sample(generator: np.random.Generator) -> float:
         control_sample = control[
             generator.choice(control.shape[0], control_sample_size, replace=True)
         ]
@@ -345,7 +362,7 @@ def ctr_bootstrap(
             without difference distribution (return_distribution=False)
     """
 
-    def sample(generator):
+    def sample(generator: np.random.Generator) -> float:
         control_sample = control.sample(control_sample_size, replace=True)
         treatment_sample = treatment.sample(treatment_sample_size, replace=True)
         global_ctr_control_sample = (
@@ -739,7 +756,7 @@ def one_sample_bootstrap(
         without bootstrap distribution (return_distribution=False)
     """
 
-    def sample(generator):
+    def sample(generator: np.random.Generator) -> float:
         control_sample = control[
             generator.choice(control.shape[0], size=sample_size, replace=True)
         ]
