@@ -508,32 +508,44 @@ def ab_test_simulation(
     treatment: np.ndarray,
     number_of_experiments: int = 2000,
     stat_test: Callable = ttest_ind,
+    n_jobs: int = -1,
 ) -> Tuple[np.ndarray, float, float]:
-    """A/B test simulation.
-
-    Args:
-        control (ndarray): 1D array containing control sample
-        treatment (ndarray): 1D array containing treatment sample
-        number_of_experiments (int): Number of experiments. Defaults to 2000
-        stat_test (Callable): Statistical test. Defaults to ttest_ind
-
-    Returns:
-        Tuple[np.ndarray, float, float]: Tuple containing p-values, test power and AUC
     """
+    A/B test simulation using joblib.Parallel.
 
-    def experiment():
-        return stat_test(
-            np.random.choice(control, control_size, replace=True),
-            np.random.choice(treatment, treatment_size, replace=True),
-        )[1]
+    Parameters
+    ----------
+    control : ndarray
+        1D array of the control sample.
+    treatment : ndarray
+        1D array of the treatment sample.
+    number_of_experiments : int, optional
+        Number of experiments, by default 2000.
+    stat_test : Callable, optional
+        Statistical test function, by default ttest_ind.
+    n_jobs : int, optional
+        Number of parallel jobs to run. Defaults to -1 (use all cores).
 
+    Returns
+    -------
+    Tuple[np.ndarray, float, float]
+        - p-values (1D array)
+        - test power (float)
+        - AUC (float)
+    """
     control_size, treatment_size = control.shape[0], treatment.shape[0]
 
-    pool = ThreadPool(cpu_count())
-    ab_p_values = np.array(
-        pool.starmap(experiment, [() for i in range(number_of_experiments)])
+    def experiment() -> float:
+        """Run a single experiment, returning a p-value."""
+        c_sample = np.random.choice(control, control_size, replace=True)
+        t_sample = np.random.choice(treatment, treatment_size, replace=True)
+        return stat_test(c_sample, t_sample)[1]
+
+    # Parallelize the experiments
+    ab_p_values = Parallel(n_jobs=n_jobs)(
+        delayed(experiment)() for _ in range(number_of_experiments)
     )
-    pool.close()
+    ab_p_values = np.array(ab_p_values)
 
     test_power = np.mean(ab_p_values < 0.05)
     ab_p_values_sorted = np.sort(ab_p_values)
