@@ -8,7 +8,7 @@ def readme():
 
 setup(
     name="fastbootstrap",
-    version="1.2.0",
+    version="1.2.4",
     author="Timofey Tkachenko",
     author_email="timofey_tkachenko@pm.me",
     description="Fast Python implementation of statistical bootstrap",
@@ -27,6 +27,8 @@ setup(
         "tqdm==4.67.1",
         "seaborn==0.13.2",
         "joblib==1.4.2",
+        "rich==13.9.4",
+        "markdown-it-py==2.2.0"
     ],
     keywords="bootstrap fast_bootstrap",
     python_requires=">=3.10",
