@@ -95,19 +95,14 @@ from .methods import (
 from .simulation import (
     aa_test_simulation,
     ab_test_simulation,
-    bootstrap_power_analysis,
     power_analysis,
 )
 
 # Utility functions
 from .utils import (  # Legacy function for backward compatibility
-    calculate_effect_size,
-    create_sample_data,
     display_bootstrap_summary,
     display_markdown_cell_by_significance,
     display_significance_result,
-    format_p_value,
-    interpret_effect_size,
     validate_arrays_compatible,
 )
 

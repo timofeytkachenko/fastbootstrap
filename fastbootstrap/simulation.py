@@ -11,8 +11,8 @@ import numpy.typing as npt
 from joblib import Parallel, delayed
 from scipy.stats import ttest_ind
 
-from .constants import ALPHA_THRESHOLD, DEFAULT_BOOTSTRAP_SAMPLES, DEFAULT_N_JOBS
-from .core import _validate_bootstrap_params, _validate_sample_array
+from .constants import ALPHA_THRESHOLD, DEFAULT_N_JOBS
+from .core import _validate_sample_array
 from .exceptions import NumericalError, ValidationError
 from .visualization import plot_summary
 
@@ -53,8 +53,6 @@ def ab_test_simulation(
             Array of p-values from all simulated experiments.
         - 'test_power' : float
             Proportion of experiments with p < 0.05 (statistical power).
-        - 'auc' : float
-            Area under the curve of sorted p-values.
 
     Raises
     ------
@@ -110,16 +108,7 @@ def ab_test_simulation(
         # Calculate test power (proportion of significant results)
         test_power = float(np.mean(ab_p_values < ALPHA_THRESHOLD))
 
-        # Calculate area under the curve of sorted p-values
-        sorted_p_values = np.sort(ab_p_values)
-        x_values = np.arange(len(sorted_p_values)) / len(sorted_p_values)
-        auc = float(np.trapz(x_values, sorted_p_values))
-
-        return {
-            "ab_p_values": ab_p_values,
-            "test_power": test_power,
-            "auc": auc,
-        }
+        return {"ab_p_values": ab_p_values, "test_power": test_power}
 
     except Exception as e:
         raise NumericalError(
@@ -163,8 +152,6 @@ def aa_test_simulation(
             Array of p-values from all simulated A/A experiments.
         - 'type_i_error_rate' : float
             Proportion of experiments with p < 0.05 (should be ≈ 0.05).
-        - 'auc' : float
-            Area under the curve of sorted p-values (should be ≈ 0.5).
 
     Raises
     ------
@@ -218,16 +205,7 @@ def aa_test_simulation(
         # Calculate Type I error rate (should be approximately alpha)
         type_i_error_rate = float(np.mean(aa_p_values < ALPHA_THRESHOLD))
 
-        # Calculate area under the curve of sorted p-values
-        sorted_p_values = np.sort(aa_p_values)
-        x_values = np.arange(len(sorted_p_values)) / len(sorted_p_values)
-        auc = float(np.trapz(x_values, sorted_p_values))
-
-        return {
-            "aa_p_values": aa_p_values,
-            "type_i_error_rate": type_i_error_rate,
-            "auc": auc,
-        }
+        return {"aa_p_values": aa_p_values, "type_i_error_rate": type_i_error_rate}
 
     except Exception as e:
         raise NumericalError(
@@ -278,7 +256,7 @@ def power_analysis(
         - 'ab_results' : dict
             Results from A/B test simulation.
         - 'power_summary' : dict
-            Summary statistics including effect size and power.
+            Summary statistics including statistical power and Type I error rate.
 
     Raises
     ------
@@ -318,19 +296,8 @@ def power_analysis(
             control, treatment, number_of_experiments, stat_test, n_jobs
         )
 
-        # Calculate effect size (Cohen's d)
-        pooled_std = np.sqrt(
-            (
-                (len(control) - 1) * np.var(control, ddof=1)
-                + (len(treatment) - 1) * np.var(treatment, ddof=1)
-            )
-            / (len(control) + len(treatment) - 2)
-        )
-        effect_size = (np.mean(treatment) - np.mean(control)) / pooled_std
-
         # Create power summary
         power_summary = {
-            "effect_size": float(effect_size),
             "statistical_power": ab_results["test_power"],
             "type_i_error_rate": aa_results["type_i_error_rate"],
             "control_mean": float(np.mean(control)),
@@ -356,133 +323,4 @@ def power_analysis(
             "Failed to perform power analysis",
             operation="power_analysis",
             values={"n_experiments": number_of_experiments},
-        ) from e
-
-
-def bootstrap_power_analysis(
-    control: npt.NDArray[np.floating],
-    treatment: npt.NDArray[np.floating],
-    number_of_bootstrap_samples: int = DEFAULT_BOOTSTRAP_SAMPLES,
-    number_of_experiments: int = 1000,
-    n_jobs: int = DEFAULT_N_JOBS,
-) -> Dict[str, Union[float, npt.NDArray[np.floating]]]:
-    """Perform bootstrap-based power analysis.
-
-    This function uses bootstrap resampling to estimate the statistical power
-    of bootstrap tests, providing an alternative to traditional parametric
-    power analysis.
-
-    Parameters
-    ----------
-    control : ndarray
-        1D array containing the control sample.
-    treatment : ndarray
-        1D array containing the treatment sample.
-    number_of_bootstrap_samples : int, optional
-        Number of bootstrap samples per experiment. Default is 10000.
-    number_of_experiments : int, optional
-        Number of bootstrap experiments to run. Default is 1000.
-    n_jobs : int, optional
-        Number of parallel jobs. -1 uses all available cores. Default is -1.
-
-    Returns
-    -------
-    dict
-        Dictionary containing:
-        - 'bootstrap_p_values' : ndarray
-            Array of p-values from bootstrap experiments.
-        - 'bootstrap_power' : float
-            Statistical power estimated using bootstrap methods.
-        - 'effect_size' : float
-            Bootstrap-estimated effect size.
-
-    Raises
-    ------
-    ValidationError
-        If inputs are invalid.
-    NumericalError
-        If simulation fails.
-
-    Examples
-    --------
-    >>> control = np.random.normal(0, 1, 50)
-    >>> treatment = np.random.normal(0.5, 1, 50)
-    >>> result = bootstrap_power_analysis(control, treatment,
-    ...                                   number_of_bootstrap_samples=1000,
-    ...                                   number_of_experiments=100)
-    >>> 'bootstrap_power' in result
-    True
-
-    Notes
-    -----
-    Time complexity: O(e * b * (n + m)) where e is experiments, b is bootstrap samples.
-    Space complexity: O(e * b).
-    """
-    # Validate inputs
-    _validate_sample_array(control, "control")
-    _validate_sample_array(treatment, "treatment")
-    _validate_bootstrap_params(number_of_bootstrap_samples, 0.95)
-
-    if number_of_experiments <= 0:
-        raise ValidationError(
-            "Number of experiments must be positive",
-            parameter="number_of_experiments",
-            value=number_of_experiments,
-        )
-
-    try:
-        from .methods import two_sample_bootstrap
-
-        def single_bootstrap_experiment() -> float:
-            """Run a single bootstrap experiment."""
-            # Resample from original distributions
-            control_sample = np.random.choice(control, len(control), replace=True)
-            treatment_sample = np.random.choice(treatment, len(treatment), replace=True)
-
-            # Perform bootstrap test
-            result = two_sample_bootstrap(
-                control_sample,
-                treatment_sample,
-                number_of_bootstrap_samples=number_of_bootstrap_samples,
-                seed=None,  # Use different seed for each experiment
-            )
-
-            return result["p_value"]
-
-        # Run bootstrap experiments in parallel
-        bootstrap_p_values = Parallel(n_jobs=n_jobs)(
-            delayed(single_bootstrap_experiment)() for _ in range(number_of_experiments)
-        )
-        bootstrap_p_values = np.array(bootstrap_p_values)
-
-        # Calculate bootstrap power
-        bootstrap_power = float(np.mean(bootstrap_p_values < ALPHA_THRESHOLD))
-
-        # Estimate effect size using bootstrap
-        bootstrap_differences = []
-        for _ in range(100):  # Use smaller sample for effect size estimation
-            control_sample = np.random.choice(control, len(control), replace=True)
-            treatment_sample = np.random.choice(treatment, len(treatment), replace=True)
-            bootstrap_differences.append(
-                np.mean(treatment_sample) - np.mean(control_sample)
-            )
-
-        effect_size = float(
-            np.mean(bootstrap_differences) / np.std(bootstrap_differences)
-        )
-
-        return {
-            "bootstrap_p_values": bootstrap_p_values,
-            "bootstrap_power": bootstrap_power,
-            "effect_size": effect_size,
-        }
-
-    except Exception as e:
-        raise NumericalError(
-            "Failed to perform bootstrap power analysis",
-            operation="bootstrap_power_analysis",
-            values={
-                "n_experiments": number_of_experiments,
-                "n_bootstrap": number_of_bootstrap_samples,
-            },
         ) from e
