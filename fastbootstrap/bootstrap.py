@@ -12,6 +12,7 @@ import warnings
 from typing import Callable, Dict, Iterator, Optional, Tuple, Union
 
 import numpy as np
+import numpy.typing as npt
 from matplotlib.axes import Axes
 from scipy.stats import ttest_ind
 
@@ -20,8 +21,9 @@ from .compare_functions import difference, difference_of_mean
 
 # Maintain original function signatures for backward compatibility
 def estimate_confidence_interval(
-    distribution: np.ndarray, bootstrap_conf_level: float = 0.95
-) -> np.ndarray:
+    distribution: npt.NDArray[np.floating],
+    bootstrap_conf_level: float = 0.95,
+) -> npt.NDArray[np.floating]:
     """Estimate the confidence interval of a distribution using quantiles.
 
     Parameters
@@ -42,7 +44,8 @@ def estimate_confidence_interval(
 
 
 def estimate_p_value(
-    bootstrap_difference_distribution: np.ndarray, number_of_bootstrap_samples: int
+    bootstrap_difference_distribution: npt.NDArray[np.floating],
+    number_of_bootstrap_samples: int,
 ) -> float:
     """Estimate the two-sided p-value from a bootstrap difference distribution.
 
@@ -65,7 +68,7 @@ def estimate_p_value(
     )
 
 
-def estimate_bin_params(sample: np.ndarray) -> Tuple[float, int]:
+def estimate_bin_params(sample: npt.NDArray[np.floating]) -> Tuple[float, int]:
     """Estimate histogram bin parameters using the Freedman-Diaconis rule.
 
     Parameters
@@ -88,7 +91,9 @@ def estimate_bin_params(sample: np.ndarray) -> Tuple[float, int]:
     return _estimate_bin_params(sample)
 
 
-def jackknife_indices(control: np.ndarray) -> Iterator[np.ndarray]:
+def jackknife_indices(
+    control: npt.NDArray[np.floating],
+) -> Iterator[npt.NDArray[np.intp]]:
     """Generate jackknife indices for leave-one-out resampling.
 
     Parameters
@@ -108,11 +113,11 @@ def jackknife_indices(control: np.ndarray) -> Iterator[np.ndarray]:
 
 
 def bca(
-    control: np.ndarray,
-    bootstrap_distribution: np.ndarray,
-    statistic: Callable = np.mean,
+    control: npt.NDArray[np.floating],
+    bootstrap_distribution: npt.NDArray[np.floating],
+    statistic: Callable[[npt.NDArray[np.floating]], float] = np.mean,
     bootstrap_conf_level: float = 0.95,
-) -> np.ndarray:
+) -> npt.NDArray[np.floating]:
     """Compute the BCa (bias-corrected and accelerated) confidence interval.
 
     Parameters
@@ -140,11 +145,13 @@ def bca(
 
 
 def bootstrap_resampling(
-    sample_function: Callable,
+    sample_function: Callable[
+        [np.random.Generator], Union[float, npt.NDArray[np.floating]]
+    ],
     number_of_bootstrap_samples: int,
     seed: Optional[int] = None,
     n_jobs: int = -1,
-) -> np.ndarray:
+) -> npt.NDArray[np.floating]:
     """Perform bootstrap resampling with independent random generators per sample.
 
     Parameters
@@ -173,8 +180,8 @@ def bootstrap_resampling(
 
 
 def bootstrap_plot(
-    bootstrap_distribution: np.ndarray,
-    bootstrap_confidence_interval: np.ndarray,
+    bootstrap_distribution: npt.NDArray[np.floating],
+    bootstrap_confidence_interval: npt.NDArray[np.floating],
     statistic: Optional[Union[str, Callable]] = None,
     title: str = "Bootstrap",
     two_sample_plot: bool = True,
@@ -214,16 +221,18 @@ def bootstrap_plot(
 
 
 def two_sample_bootstrap(
-    control: np.ndarray,
-    treatment: np.ndarray,
+    control: npt.NDArray[np.floating],
+    treatment: npt.NDArray[np.floating],
     bootstrap_conf_level: float = 0.95,
     number_of_bootstrap_samples: int = 10000,
     sample_size: Optional[int] = None,
-    statistic: Callable = difference_of_mean,
+    statistic: Callable[
+        [npt.NDArray[np.floating], npt.NDArray[np.floating]], float
+    ] = difference_of_mean,
     return_distribution: bool = False,
     seed: Optional[int] = None,
     plot: bool = False,
-) -> Dict[str, Union[float, np.ndarray, None]]:
+) -> Dict[str, Union[float, npt.NDArray[np.floating], None]]:
     """Perform two-sample bootstrap analysis for comparing two samples.
 
     Parameters
@@ -281,17 +290,23 @@ def two_sample_bootstrap(
 
 
 def spotify_two_sample_bootstrap(
-    control: np.ndarray,
-    treatment: np.ndarray,
+    control: npt.NDArray[np.floating],
+    treatment: npt.NDArray[np.floating],
     number_of_bootstrap_samples: int = 10000,
     sample_size: Optional[int] = None,
     q1: float = 0.5,
     q2: Optional[float] = None,
-    statistic: Callable[[np.ndarray, np.ndarray], float] = difference,
+    statistic: Callable[
+        [
+            Union[npt.NDArray[np.floating], float],
+            Union[npt.NDArray[np.floating], float],
+        ],
+        Union[npt.NDArray[np.floating], float],
+    ] = difference,
     bootstrap_conf_level: float = 0.95,
     return_distribution: bool = False,
     plot: bool = False,
-) -> Dict[str, Union[float, np.ndarray, None]]:
+) -> Dict[str, Union[float, npt.NDArray[np.floating], None]]:
     """Perform Spotify-style two-sample bootstrap for quantile comparisons.
 
     Parameters
@@ -354,12 +369,14 @@ def spotify_two_sample_bootstrap(
 
 
 def ab_test_simulation(
-    control: np.ndarray,
-    treatment: np.ndarray,
+    control: npt.NDArray[np.floating],
+    treatment: npt.NDArray[np.floating],
     number_of_experiments: int = 2000,
-    stat_test: Callable = ttest_ind,
+    stat_test: Callable[
+        [npt.NDArray[np.floating], npt.NDArray[np.floating]], Tuple[float, float]
+    ] = ttest_ind,
     n_jobs: int = -1,
-) -> Dict[str, Union[float, np.ndarray]]:
+) -> Dict[str, Union[float, npt.NDArray[np.floating]]]:
     """Simulate multiple A/B tests with parallel p-value computation.
 
     Parameters
@@ -401,7 +418,12 @@ def ab_test_simulation(
     return result
 
 
-def plot_cdf(p_values: np.ndarray, label: str, ax: Axes, linewidth: float = 3) -> None:
+def plot_cdf(
+    p_values: npt.NDArray[np.floating],
+    label: str,
+    ax: Axes,
+    linewidth: float = 3,
+) -> None:
     """Plot the empirical CDF (Cumulative Distribution Function) of p-values.
 
     Parameters
@@ -425,7 +447,10 @@ def plot_cdf(p_values: np.ndarray, label: str, ax: Axes, linewidth: float = 3) -
     _plot_cdf(p_values, label, ax, linewidth)
 
 
-def plot_summary(aa_p_values: np.ndarray, ab_p_values: np.ndarray) -> None:
+def plot_summary(
+    aa_p_values: npt.NDArray[np.floating],
+    ab_p_values: npt.NDArray[np.floating],
+) -> None:
     """Create comprehensive summary plots for A/A and A/B test p-values.
 
     Parameters
@@ -446,13 +471,15 @@ def plot_summary(aa_p_values: np.ndarray, ab_p_values: np.ndarray) -> None:
 
 
 def quantile_bootstrap_plot(
-    control: np.ndarray,
-    treatment: np.ndarray,
+    control: npt.NDArray[np.floating],
+    treatment: npt.NDArray[np.floating],
     n_step: int = 20,
     q1: float = 0.01,
     q2: float = 0.99,
     bootstrap_conf_level: float = 0.95,
-    statistic: Callable[[np.ndarray, np.ndarray], np.ndarray] = difference,
+    statistic: Callable[
+        [npt.NDArray[np.floating], npt.NDArray[np.floating]], npt.NDArray[np.floating]
+    ] = difference,
     correction: str = "bh",
 ) -> None:
     """Create an interactive quantile-by-quantile comparison with confidence bands.
@@ -492,16 +519,16 @@ def quantile_bootstrap_plot(
 
 
 def one_sample_bootstrap(
-    control: np.ndarray,
+    control: npt.NDArray[np.floating],
     bootstrap_conf_level: float = 0.95,
     number_of_bootstrap_samples: int = 10000,
     sample_size: Optional[int] = None,
-    statistic: Callable = np.mean,
+    statistic: Callable[[npt.NDArray[np.floating]], float] = np.mean,
     method: str = "percentile",
     return_distribution: bool = False,
     seed: Optional[int] = None,
     plot: bool = False,
-) -> Dict[str, Union[float, np.ndarray, None]]:
+) -> Dict[str, Union[float, npt.NDArray[np.floating], None]]:
     """Perform one-sample bootstrap to estimate confidence intervals for a statistic.
 
     Parameters
@@ -560,14 +587,14 @@ def one_sample_bootstrap(
 
 
 def spotify_one_sample_bootstrap(
-    sample: np.ndarray,
+    sample: npt.NDArray[np.floating],
     sample_size: Optional[int] = None,
     q: float = 0.5,
     bootstrap_conf_level: float = 0.95,
     number_of_bootstrap_samples: int = 10000,
     return_distribution: bool = False,
-    plot=False,
-) -> Dict[str, Union[float, np.ndarray, None]]:
+    plot: bool = False,
+) -> Dict[str, Union[float, npt.NDArray[np.floating], None]]:
     """Perform Spotify-style one-sample bootstrap for quantile estimation.
 
     Parameters
@@ -614,7 +641,9 @@ def spotify_one_sample_bootstrap(
 
 
 def poisson_bootstrap(
-    control: np.ndarray, treatment: np.ndarray, number_of_bootstrap_samples: int = 10000
+    control: npt.NDArray[np.floating],
+    treatment: npt.NDArray[np.floating],
+    number_of_bootstrap_samples: int = 10000,
 ) -> float:
     """Perform Poisson bootstrap for comparing aggregated values between two samples.
 
@@ -638,8 +667,8 @@ def poisson_bootstrap(
 
 
 def bootstrap(
-    control: np.ndarray,
-    treatment: Optional[np.ndarray] = None,
+    control: npt.NDArray[np.floating],
+    treatment: Optional[npt.NDArray[np.floating]] = None,
     bootstrap_conf_level: float = 0.95,
     number_of_bootstrap_samples: int = 10000,
     sample_size: Optional[int] = None,
@@ -650,7 +679,7 @@ def bootstrap(
     return_distribution: bool = False,
     seed: Optional[int] = None,
     plot: bool = False,
-) -> Dict[str, Union[float, np.ndarray, None]]:
+) -> Dict[str, Union[float, npt.NDArray[np.floating], None]]:
     """Unified bootstrap function that automatically selects appropriate method based on inputs.
 
     Parameters

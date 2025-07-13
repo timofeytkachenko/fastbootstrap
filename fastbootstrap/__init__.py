@@ -28,12 +28,10 @@ Examples:
 >>> print(f"P-value: {result['p_value']:.4f}")
 """
 
-__version__ = "1.2.5"
-__author__ = "Timofey Tkachenko"
-__email__ = "timofey_tkachenko@pm.me"
+import numpy as np
 
 # Comparison functions
-from .compare_functions import (  # Mean comparisons; Standard deviation comparisons; Median comparisons; General comparisons (for Spotify-style bootstrap)
+from .compare_functions import (
     difference,
     difference_of_mean,
     difference_of_median,
@@ -99,7 +97,7 @@ from .simulation import (
 )
 
 # Utility functions
-from .utils import (  # Legacy function for backward compatibility
+from .utils import (
     display_bootstrap_summary,
     display_markdown_cell_by_significance,
     display_significance_result,
@@ -173,57 +171,6 @@ __all__ = [
 ]
 
 
-# Convenience aliases for common use cases
-# These make the API more user-friendly
-def quick_bootstrap(control, treatment=None, **kwargs):
-    """Quick bootstrap analysis with sensible defaults.
-
-    This is a convenience wrapper around the main bootstrap function
-    with commonly used parameters.
-
-    Parameters
-    ----------
-    control : array-like
-        Control sample or single sample for one-sample bootstrap.
-    treatment : array-like, optional
-        Treatment sample for two-sample bootstrap.
-    **kwargs
-        Additional arguments passed to bootstrap function.
-
-    Returns
-    -------
-    dict
-        Bootstrap analysis results.
-    """
-    return bootstrap(control, treatment, **kwargs)
-
-
-def quick_comparison(control, treatment, plot=True, **kwargs):
-    """Quick two-sample comparison with visualization.
-
-    Parameters
-    ----------
-    control : array-like
-        Control sample.
-    treatment : array-like
-        Treatment sample.
-    plot : bool, optional
-        Whether to create a plot. Default is True.
-    **kwargs
-        Additional arguments passed to two_sample_bootstrap.
-
-    Returns
-    -------
-    dict
-        Two-sample bootstrap results.
-    """
-    return two_sample_bootstrap(control, treatment, plot=plot, **kwargs)
-
-
-# Add aliases to __all__ for discoverability
-__all__.extend(["quick_bootstrap", "quick_comparison"])
-
-
 # Module-level configuration
 def set_default_bootstrap_samples(n_samples: int) -> None:
     """Set the default number of bootstrap samples globally.
@@ -261,17 +208,6 @@ def set_default_confidence_level(level: float) -> None:
     constants.DEFAULT_CONFIDENCE_LEVEL = level
 
 
-def get_version() -> str:
-    """Get the current version of fastbootstrap.
-
-    Returns
-    -------
-    str
-        Version string.
-    """
-    return __version__
-
-
 def get_config() -> dict:
     """Get current configuration settings.
 
@@ -287,33 +223,13 @@ def get_config() -> dict:
         "default_confidence_level": constants.DEFAULT_CONFIDENCE_LEVEL,
         "default_n_jobs": constants.DEFAULT_N_JOBS,
         "alpha_threshold": constants.ALPHA_THRESHOLD,
-        "version": __version__,
     }
 
 
 # Add configuration functions to __all__
 __all__.extend(
-    [
-        "set_default_bootstrap_samples",
-        "set_default_confidence_level",
-        "get_version",
-        "get_config",
-    ]
+    ["set_default_bootstrap_samples", "set_default_confidence_level", "get_config"]
 )
 
-# Import numpy for convenience (commonly used with bootstrap)
-import numpy as np
-
+# Numpy is already imported above for convenience
 __all__.append("np")
-
-
-# Display helpful information when imported
-def _display_import_info():
-    """Display helpful information when the package is imported."""
-    print(f"FastBootstrap v{__version__} - Fast Statistical Bootstrap for Python")
-    print("Documentation: https://github.com/timofeytkachenko/fastbootstrap")
-    print("Quick start: fb.bootstrap(sample) or fb.bootstrap(control, treatment)")
-
-
-# Uncomment the following line to display import info
-# _display_import_info()
