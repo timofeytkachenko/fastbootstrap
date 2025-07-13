@@ -309,7 +309,7 @@ def plot_summary(
             bins=50,
             density=True,
             alpha=0.7,
-            color="blue",
+            color="red",
             label="A/A Test (H₀)",
         )
         axes["A"].set_title("P-values under H₀ (Type I Error)", fontsize=12)
@@ -347,7 +347,7 @@ def plot_summary(
         axes["D"].legend()
 
         # Power bar chart
-        axes["E"].barh(0, test_power, color="green", alpha=0.7, height=0.5)
+        axes["E"].barh(0, test_power, color="red", alpha=0.7, height=0.5)
         axes["E"].set_xlim(0, 1)
         axes["E"].set_title(f"Statistical Power: {test_power:.3f}", fontsize=12)
         axes["E"].set_xlabel("Power")
