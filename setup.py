@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 
 def readme():
@@ -28,7 +28,7 @@ setup(
         "seaborn==0.13.2",
         "joblib==1.4.2",
         "rich==13.9.4",
-        "markdown-it-py==2.2.0"
+        "markdown-it-py==2.2.0",
     ],
     keywords="bootstrap fast_bootstrap",
     python_requires=">=3.10",

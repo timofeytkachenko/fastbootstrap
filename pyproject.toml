@@ -1,0 +1,25 @@
+[project]
+name = "fastbootstrap"
+version = "1.2.5"
+description = "Fast Python implementation of statistical bootstrap"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "ipython>=9.4.0",
+    "joblib>=1.5.1",
+    "jupyter>=1.1.1",
+    "matplotlib>=3.10.3",
+    "numpy>=2.3.1",
+    "plotly>=6.2.0",
+    "scipy>=1.16.0",
+    "seaborn>=0.13.2",
+    "tqdm>=4.67.1",
+]
+
+[dependency-groups]
+dev = [
+    "isort>=6.0.1",
+    "nbqa>=1.9.1",
+    "pre-commit>=4.2.0",
+    "ruff>=0.12.3",
+]
