@@ -491,7 +491,7 @@ def quantile_bootstrap_plot(
             go.Scatter(
                 x=df["quantile"],
                 y=df["difference"],
-                mode="lines+markers",
+                mode="lines",
                 name="Difference",
                 line=dict(color="red", width=2),
             )
@@ -505,6 +505,8 @@ def quantile_bootstrap_plot(
                 mode="lines",
                 line=dict(width=0),
                 showlegend=False,
+                fillcolor="rgba(255, 0, 0, 0.3)",
+                name="Confidence Band Upper",
             )
         )
 
@@ -514,9 +516,10 @@ def quantile_bootstrap_plot(
                 y=df["lower_bound"],
                 mode="lines",
                 line=dict(width=0),
+                showlegend=False,
                 fill="tonexty",
-                fillcolor="rgba(68, 68, 68, 0.3)",
-                name="Confidence Band",
+                fillcolor="rgba(255, 0, 0, 0.3)",
+                name="Confidence Band Lower",
             )
         )
 
@@ -529,7 +532,7 @@ def quantile_bootstrap_plot(
             xaxis_title="Quantile",
             yaxis_title="Difference",
             hovermode="x unified",
-            showlegend=True,
+            showlegend=False,
         )
 
         # Add custom hover data
