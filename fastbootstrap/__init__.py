@@ -70,10 +70,8 @@ from .core import (
 # Exceptions
 from .exceptions import (
     BootstrapMethodError,
-    ConvergenceError,
     FastBootstrapError,
     InsufficientDataError,
-    MemoryError,
     NumericalError,
     PlottingError,
     ValidationError,

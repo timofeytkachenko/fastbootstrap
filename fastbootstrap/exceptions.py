@@ -153,64 +153,6 @@ class BootstrapMethodError(FastBootstrapError):
         super().__init__(message, details)
 
 
-class ConvergenceError(FastBootstrapError):
-    """Exception raised when bootstrap computation doesn't converge."""
-
-    def __init__(
-        self,
-        message: str,
-        iterations: Optional[int] = None,
-        tolerance: Optional[float] = None,
-    ) -> None:
-        """Initialize convergence error.
-
-        Parameters
-        ----------
-        message : str
-            The error message.
-        iterations : int, optional
-            Number of iterations attempted.
-        tolerance : float, optional
-            The convergence tolerance.
-        """
-        details = {}
-        if iterations is not None:
-            details["iterations"] = iterations
-        if tolerance is not None:
-            details["tolerance"] = tolerance
-
-        super().__init__(message, details)
-
-
-class MemoryError(FastBootstrapError):
-    """Exception raised when memory requirements exceed limits."""
-
-    def __init__(
-        self,
-        message: str,
-        required_memory: Optional[int] = None,
-        available_memory: Optional[int] = None,
-    ) -> None:
-        """Initialize memory error.
-
-        Parameters
-        ----------
-        message : str
-            The error message.
-        required_memory : int, optional
-            Required memory in MB.
-        available_memory : int, optional
-            Available memory in MB.
-        """
-        details = {}
-        if required_memory is not None:
-            details["required_memory_mb"] = required_memory
-        if available_memory is not None:
-            details["available_memory_mb"] = available_memory
-
-        super().__init__(message, details)
-
-
 class PlottingError(FastBootstrapError):
     """Exception raised for plotting and visualization errors."""
 
