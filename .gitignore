@@ -1,5 +1,5 @@
 .idea/
 __pycache__/
 .ipynb_checkpoints/
-/cuped
+fastbootstrap.egg-info/
 .DS_Store
