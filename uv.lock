@@ -361,8 +361,8 @@ wheels = [
 
 [[package]]
 name = "fastbootstrap"
-version = "1.6.0"
-source = { virtual = "." }
+version = "1.6.1"
+source = { editable = "." }
 dependencies = [
     { name = "ipython" },
     { name = "joblib" },

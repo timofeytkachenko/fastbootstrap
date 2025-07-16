@@ -1,10 +1,10 @@
 [project]
 name = "fastbootstrap"
-version = "1.6.0"
+version = "1.6.1"
 description = "Fast Python implementation of statistical bootstrap"
 readme = "README.md"
 authors = [
-    {name = "Timofey Tkachenko", email = "timofeytkachenko@example.com"}
+    {name = "Timofey Tkachenko", email = "timofey_tkachenko@pm.me"}
 ]
 keywords = [
     "bootstrap",
@@ -58,3 +58,10 @@ dev = [
 exclude = [
     "fastbootstrap/__init__.py"
 ]
+
+[build-system]
+requires = ['hatchling']
+build-backend = 'hatchling.build'
+
+[tool.hatch.build]
+include = ['img/*']

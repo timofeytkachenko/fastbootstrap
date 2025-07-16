@@ -223,7 +223,7 @@ def power_analysis(
         [npt.NDArray[np.floating], npt.NDArray[np.floating]], tuple[float, float]
     ] = ttest_ind,
     n_jobs: int = DEFAULT_N_JOBS,
-    plot_results: bool = False,
+    plot: bool = False,
 ) -> Dict[str, Union[float, npt.NDArray[np.floating]]]:
     """Perform comprehensive power analysis with both A/A and A/B simulations.
 
@@ -244,7 +244,7 @@ def power_analysis(
         (statistic, p_value). Default is scipy.stats.ttest_ind.
     n_jobs : int, optional
         Number of parallel jobs. -1 uses all available cores. Default is -1.
-    plot_results : bool, optional
+    plot : bool, optional
         Whether to create summary plots. Default is False.
 
     Returns
@@ -309,7 +309,7 @@ def power_analysis(
         }
 
         # Create plots if requested
-        if plot_results:
+        if plot:
             plot_summary(aa_results["aa_p_values"], ab_results["ab_p_values"])
 
         return {
