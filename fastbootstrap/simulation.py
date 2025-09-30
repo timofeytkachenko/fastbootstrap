@@ -4,7 +4,7 @@ This module provides functions for simulating A/B tests, calculating statistical
 power, and performing related statistical simulations.
 """
 
-from typing import Callable, Dict, Union
+from typing import Callable, Dict, Optional, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -25,6 +25,7 @@ def ab_test_simulation(
         [npt.NDArray[np.floating], npt.NDArray[np.floating]], tuple[float, float]
     ] = ttest_ind,
     n_jobs: int = DEFAULT_N_JOBS,
+    batch_size: Optional[int] = None,
 ) -> Dict[str, Union[float, npt.NDArray[np.floating]]]:
     """Simulate multiple A/B tests with parallel p-value computation.
 
@@ -44,6 +45,9 @@ def ab_test_simulation(
         (statistic, p_value). Default is scipy.stats.ttest_ind.
     n_jobs : int, optional
         Number of parallel jobs. -1 uses all available cores. Default is -1.
+    batch_size : int, optional
+        Number of experiments per batch for parallel processing.
+        If None, uses 'auto' for dynamic batch sizing. Default is None.
 
     Returns
     -------
@@ -99,10 +103,12 @@ def ab_test_simulation(
             _, p_value = stat_test(control_sample, treatment_sample)
             return float(p_value)
 
-        # Run experiments in parallel
-        ab_p_values = Parallel(n_jobs=n_jobs)(
-            delayed(single_experiment)() for _ in range(number_of_experiments)
-        )
+        # Run experiments in parallel with optimized batch processing
+        ab_p_values = Parallel(
+            n_jobs=n_jobs,
+            prefer='processes',
+            batch_size=batch_size or 'auto',
+        )(delayed(single_experiment)() for _ in range(number_of_experiments))
         ab_p_values = np.array(ab_p_values)
 
         # Calculate test power (proportion of significant results)
@@ -125,6 +131,7 @@ def aa_test_simulation(
         [npt.NDArray[np.floating], npt.NDArray[np.floating]], tuple[float, float]
     ] = ttest_ind,
     n_jobs: int = DEFAULT_N_JOBS,
+    batch_size: Optional[int] = None,
 ) -> Dict[str, Union[float, npt.NDArray[np.floating]]]:
     """Simulate multiple A/A tests to validate Type I error rate.
 
@@ -143,6 +150,9 @@ def aa_test_simulation(
         (statistic, p_value). Default is scipy.stats.ttest_ind.
     n_jobs : int, optional
         Number of parallel jobs. -1 uses all available cores. Default is -1.
+    batch_size : int, optional
+        Number of experiments per batch for parallel processing.
+        If None, uses 'auto' for dynamic batch sizing. Default is None.
 
     Returns
     -------
@@ -196,10 +206,12 @@ def aa_test_simulation(
             _, p_value = stat_test(group_a, group_b)
             return float(p_value)
 
-        # Run experiments in parallel
-        aa_p_values = Parallel(n_jobs=n_jobs)(
-            delayed(single_aa_experiment)() for _ in range(number_of_experiments)
-        )
+        # Run experiments in parallel with optimized batch processing
+        aa_p_values = Parallel(
+            n_jobs=n_jobs,
+            prefer='processes',
+            batch_size=batch_size or 'auto',
+        )(delayed(single_aa_experiment)() for _ in range(number_of_experiments))
         aa_p_values = np.array(aa_p_values)
 
         # Calculate Type I error rate (should be approximately alpha)
@@ -223,6 +235,7 @@ def power_analysis(
         [npt.NDArray[np.floating], npt.NDArray[np.floating]], tuple[float, float]
     ] = ttest_ind,
     n_jobs: int = DEFAULT_N_JOBS,
+    batch_size: Optional[int] = None,
     plot: bool = False,
 ) -> Dict[str, Union[float, npt.NDArray[np.floating]]]:
     """Perform comprehensive power analysis with both A/A and A/B simulations.
@@ -244,6 +257,9 @@ def power_analysis(
         (statistic, p_value). Default is scipy.stats.ttest_ind.
     n_jobs : int, optional
         Number of parallel jobs. -1 uses all available cores. Default is -1.
+    batch_size : int, optional
+        Number of experiments per batch for parallel processing.
+        If None, uses 'auto' for dynamic batch sizing. Default is None.
     plot : bool, optional
         Whether to create summary plots. Default is False.
 
@@ -288,12 +304,12 @@ def power_analysis(
 
         # Run A/A simulation
         aa_results = aa_test_simulation(
-            combined_sample, number_of_experiments, stat_test, n_jobs
+            combined_sample, number_of_experiments, stat_test, n_jobs, batch_size
         )
 
         # Run A/B simulation
         ab_results = ab_test_simulation(
-            control, treatment, number_of_experiments, stat_test, n_jobs
+            control, treatment, number_of_experiments, stat_test, n_jobs, batch_size
         )
 
         # Create power summary

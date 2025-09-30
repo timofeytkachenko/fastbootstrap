@@ -17,6 +17,7 @@ from .constants import (
     DEFAULT_BOOTSTRAP_METHOD,
     DEFAULT_BOOTSTRAP_SAMPLES,
     DEFAULT_CONFIDENCE_LEVEL,
+    DEFAULT_N_JOBS,
     DEFAULT_QUANTILE,
     DEFAULT_SEED,
     ERROR_MESSAGES,
@@ -42,6 +43,8 @@ def one_sample_bootstrap(
     method: str = DEFAULT_BOOTSTRAP_METHOD,
     return_distribution: bool = False,
     seed: Optional[int] = DEFAULT_SEED,
+    n_jobs: int = DEFAULT_N_JOBS,
+    batch_size: Optional[int] = None,
     plot: bool = False,
 ) -> Dict[str, Union[float, npt.NDArray[np.floating], None]]:
     """Perform one-sample bootstrap for confidence interval estimation.
@@ -65,6 +68,11 @@ def one_sample_bootstrap(
         Whether to return the full bootstrap distribution. Default is False.
     seed : int, optional
         Random seed for reproducibility. Default is None.
+    n_jobs : int, optional
+        Number of parallel jobs. -1 uses all available cores. Default is -1.
+    batch_size : int, optional
+        Number of bootstrap samples per batch for parallel processing.
+        If None, uses 'auto' for dynamic batch sizing. Default is None.
     plot : bool, optional
         Whether to plot the bootstrap distribution. Default is False.
 
@@ -129,7 +137,7 @@ def one_sample_bootstrap(
 
     # Generate bootstrap samples
     bootstrap_stats = bootstrap_resampling(
-        sample_function, number_of_bootstrap_samples, seed
+        sample_function, number_of_bootstrap_samples, seed, n_jobs, batch_size
     )
     original_stat = statistic(sample)
 
@@ -207,6 +215,8 @@ def two_sample_bootstrap(
     ] = difference_of_mean,
     return_distribution: bool = False,
     seed: Optional[int] = DEFAULT_SEED,
+    n_jobs: int = DEFAULT_N_JOBS,
+    batch_size: Optional[int] = None,
     plot: bool = False,
 ) -> Dict[str, Union[float, npt.NDArray[np.floating], None]]:
     """Perform two-sample bootstrap for comparing two groups.
@@ -229,6 +239,11 @@ def two_sample_bootstrap(
         Whether to return the full bootstrap distribution. Default is False.
     seed : int, optional
         Random seed for reproducibility. Default is None.
+    n_jobs : int, optional
+        Number of parallel jobs. -1 uses all available cores. Default is -1.
+    batch_size : int, optional
+        Number of bootstrap samples per batch for parallel processing.
+        If None, uses 'auto' for dynamic batch sizing. Default is None.
     plot : bool, optional
         Whether to plot the bootstrap distribution. Default is False.
 
@@ -289,7 +304,7 @@ def two_sample_bootstrap(
 
     # Generate bootstrap distribution
     bootstrap_distribution = bootstrap_resampling(
-        sample_function, number_of_bootstrap_samples, seed
+        sample_function, number_of_bootstrap_samples, seed, n_jobs, batch_size
     )
 
     # Calculate statistics
@@ -653,6 +668,8 @@ def bootstrap(
     q: Union[float, Tuple[float, float]] = DEFAULT_QUANTILE,
     return_distribution: bool = False,
     seed: Optional[int] = DEFAULT_SEED,
+    n_jobs: int = DEFAULT_N_JOBS,
+    batch_size: Optional[int] = None,
     plot: bool = False,
 ) -> Dict[str, Union[float, npt.NDArray[np.floating], None]]:
     """Unified bootstrap function that automatically selects the appropriate method.
@@ -682,6 +699,11 @@ def bootstrap(
         Whether to return the full bootstrap distribution. Default is False.
     seed : int, optional
         Random seed for reproducibility. Default is None.
+    n_jobs : int, optional
+        Number of parallel jobs. -1 uses all available cores. Default is -1.
+    batch_size : int, optional
+        Number of bootstrap samples per batch for parallel processing.
+        If None, uses 'auto' for dynamic batch sizing. Default is None.
     plot : bool, optional
         Whether to plot the bootstrap distribution. Default is False.
 
@@ -744,6 +766,8 @@ def bootstrap(
                 method=method,
                 return_distribution=return_distribution,
                 seed=seed,
+                n_jobs=n_jobs,
+                batch_size=batch_size,
                 plot=plot,
             )
     else:
@@ -771,5 +795,7 @@ def bootstrap(
                 statistic=statistic if statistic != np.mean else difference_of_mean,
                 return_distribution=return_distribution,
                 seed=seed,
+                n_jobs=n_jobs,
+                batch_size=batch_size,
                 plot=plot,
             )
