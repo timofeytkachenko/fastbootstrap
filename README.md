@@ -473,6 +473,12 @@ result = fb.two_sample_bootstrap(
 ```
 
 **Manual Tuning (Advanced):**
+
+Manual batch size control is rarely needed. Use it only when:
+- You need **reproducible batch sizes** across different systems
+- You have **specific performance constraints** not handled by smart mode
+- You're conducting **benchmarking or research** requiring fixed parameters
+
 ```python
 # Manual control for specific optimization needs
 import psutil
@@ -493,12 +499,7 @@ result = fb.two_sample_bootstrap(
 )
 ```
 
-**Error Rate Monitoring:**
-The framework includes automatic error detection and adaptive batch sizing:
-- Skips batch sizes that exceed available memory
-- Times out tests exceeding 2 minutes
-- Provides failure diagnostics for troubleshooting
-
+**💡 Tip:** For 99% of use cases, `batch_size='smart'` automatically handles memory, CPU, and workload optimization without manual intervention.
 #### Performance Impact Summary
 
 **Smart Mode Benefits:**
