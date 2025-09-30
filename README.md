@@ -36,9 +36,10 @@ pip install fastbootstrap
 ### 🛠️ Development Setup
 
 ```bash
+Install uv: https://docs.astral.sh/uv/getting-started/installation/
 git clone https://github.com/timofeytkachenko/fastbootstrap.git
 cd fastbootstrap
-pip install -e ".[dev]"
+uv sync
 pre-commit install
 ```
 
@@ -55,7 +56,7 @@ treatment = np.random.normal(105, 15, 1000)    # Treatment group (+5% effect)
 
 # Two-sample bootstrap test with smart batch sizing
 result = fb.two_sample_bootstrap(
-    control, treatment, 
+    control, treatment,
     batch_size='smart',  # Auto-optimize performance ✨
     plot=True
 )
@@ -358,7 +359,7 @@ The library supports **intelligent batch processing** for optimal performance ac
 
 The `batch_size` parameter controls how bootstrap samples are distributed across parallel workers:
 - **Small batches**: Lower memory per worker, higher communication overhead
-- **Large batches**: Higher memory efficiency, reduced parallelization overhead  
+- **Large batches**: Higher memory efficiency, reduced parallelization overhead
 - **Optimal batches**: Balance throughput and memory based on dataset scale
 
 ```python
@@ -367,7 +368,7 @@ import numpy as np
 
 # Smart mode (recommended) - automatically optimizes based on workload
 result = fb.two_sample_bootstrap(
-    control, 
+    control,
     treatment,
     number_of_bootstrap_samples=1_000_000,
     batch_size='smart'  # Intelligent batch sizing ✨ NEW
@@ -378,7 +379,7 @@ result = fb.two_sample_bootstrap(control, treatment)
 
 # Manual mode - explicit control for advanced users
 result = fb.two_sample_bootstrap(
-    control, 
+    control,
     treatment,
     number_of_bootstrap_samples=1_000_000,
     n_jobs=-1,          # Use all CPU cores

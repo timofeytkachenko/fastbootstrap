@@ -1,6 +1,6 @@
 [project]
 name = "fastbootstrap"
-version = "1.8.0"
+version = "1.8.1"
 description = "Fast Python implementation of statistical bootstrap"
 readme = "README.md"
 authors = [
