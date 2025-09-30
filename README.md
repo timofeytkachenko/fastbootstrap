@@ -40,6 +40,7 @@ Install uv: https://docs.astral.sh/uv/getting-started/installation/
 git clone https://github.com/timofeytkachenko/fastbootstrap.git
 cd fastbootstrap
 uv sync
+source .venv/bin/activate
 pre-commit install
 ```
 
