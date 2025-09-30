@@ -9,16 +9,27 @@ from typing import Callable, Iterator, Optional, Union
 
 import numpy as np
 import numpy.typing as npt
+import psutil
 from joblib import Parallel, delayed
 from scipy.stats import norm
 
 from .constants import (
+    BATCH_SIZE_LARGE,
+    BATCH_SIZE_MASSIVE,
+    BATCH_SIZE_MEDIUM,
+    BATCH_SIZE_SMALL,
+    BATCH_SIZE_THRESHOLD_LARGE,
+    BATCH_SIZE_THRESHOLD_MEDIUM,
+    BATCH_SIZE_THRESHOLD_SMALL,
     DEFAULT_BOOTSTRAP_SAMPLES,
     DEFAULT_CONFIDENCE_LEVEL,
     DEFAULT_N_JOBS,
     DEFAULT_SEED,
     EPSILON,
     ERROR_MESSAGES,
+    LARGE_SAMPLE_THRESHOLD,
+    MEMORY_LOW_THRESHOLD,
+    MEMORY_MODERATE_THRESHOLD,
     MIN_SAMPLE_SIZE,
 )
 from .exceptions import InsufficientDataError, NumericalError, ValidationError
@@ -413,20 +424,20 @@ def bca_confidence_interval(
 
 def _create_rng_from_seed(seed_sequence: np.random.SeedSequence) -> np.random.Generator:
     """Create a random number generator from a seed sequence.
-    
+
     Helper function to enable lazy RNG creation in parallel processing,
     reducing memory overhead by avoiding upfront instantiation of all RNGs.
-    
+
     Parameters
     ----------
     seed_sequence : np.random.SeedSequence
         Seed sequence for RNG initialization.
-    
+
     Returns
     -------
     np.random.Generator
         Initialized random number generator.
-        
+
     Notes
     -----
     Time complexity: O(1).
@@ -436,26 +447,28 @@ def _create_rng_from_seed(seed_sequence: np.random.SeedSequence) -> np.random.Ge
 
 
 def _execute_bootstrap_sample(
-    sample_function: Callable[[np.random.Generator], Union[float, npt.NDArray[np.floating]]],
+    sample_function: Callable[
+        [np.random.Generator], Union[float, npt.NDArray[np.floating]]
+    ],
     seed_sequence: np.random.SeedSequence,
 ) -> Union[float, npt.NDArray[np.floating]]:
     """Execute a single bootstrap sample with lazy RNG creation.
-    
+
     Combines RNG creation and sampling to minimize memory footprint
     by creating generators only when needed in each parallel worker.
-    
+
     Parameters
     ----------
     sample_function : callable
         Function that computes bootstrap statistic.
     seed_sequence : np.random.SeedSequence
         Seed for reproducible RNG initialization.
-    
+
     Returns
     -------
     float or ndarray
         Bootstrap statistic result.
-        
+
     Notes
     -----
     Time complexity: O(f) where f is sample_function cost.
@@ -465,6 +478,114 @@ def _execute_bootstrap_sample(
     return sample_function(rng)
 
 
+def _compute_optimal_batch_size(
+    number_of_bootstrap_samples: int,
+    sample_size: int,
+    n_jobs: int,
+    available_memory_gb: Optional[float] = None,
+) -> int:
+    """Compute optimal batch size for bootstrap parallel processing.
+
+    Implements heuristics from README.md for intelligent batch sizing based on:
+    - Number of bootstrap samples (workload scale)
+    - Sample size (memory per operation)
+    - Available system memory
+    - Number of parallel workers
+
+    Parameters
+    ----------
+    number_of_bootstrap_samples : int
+        Total number of bootstrap iterations.
+    sample_size : int
+        Size of each sample being resampled.
+    n_jobs : int
+        Number of parallel workers (-1 for all cores).
+    available_memory_gb : float, optional
+        Available system memory in GB. Auto-detected if None.
+
+    Returns
+    -------
+    int
+        Optimal batch size balancing speed and memory.
+
+    Notes
+    -----
+    **Heuristics** (from README.md):
+
+    - Small datasets (< 10K): batch_size = 128 (minimize overhead)
+    - Medium datasets (10K-100K): batch_size = 256 (balance)
+    - Large datasets (100K-500K): batch_size = 512 (reduce memory)
+    - Massive datasets (> 500K): batch_size = 1000 (optimize memory)
+
+    **Memory Constraints:**
+
+    - < 4 GB available: conservative batching (cap at 64)
+    - < 8 GB available: moderate batching (cap at 256)
+    - >= 8 GB available: aggressive batching
+
+    **Sample Size Adjustments:**
+
+    - Large samples (> 100K elements): reduce batch size by half
+
+    Time complexity: O(1).
+    Space complexity: O(1).
+
+    Examples
+    --------
+    >>> # Auto-detect memory and compute batch size
+    >>> batch_size = _compute_optimal_batch_size(100_000, 1000, -1)
+    >>> batch_size in [128, 256, 512]
+    True
+
+    >>> # Specify available memory explicitly
+    >>> batch_size = _compute_optimal_batch_size(1_000_000, 5000, -1, available_memory_gb=16.0)
+    >>> batch_size >= 256
+    True
+    """
+    # Auto-detect available memory if not provided
+    if available_memory_gb is None:
+        available_memory_gb = psutil.virtual_memory().available / (1024**3)
+
+    # Determine effective worker count
+    if n_jobs == -1:
+        n_workers = psutil.cpu_count(logical=True) or 1
+    else:
+        n_workers = min(n_jobs, psutil.cpu_count(logical=True) or 1)
+
+    # Heuristic-based batch sizing by workload scale
+    if number_of_bootstrap_samples < BATCH_SIZE_THRESHOLD_SMALL:
+        # Small: minimize parallelization overhead
+        base_batch = BATCH_SIZE_SMALL
+    elif number_of_bootstrap_samples < BATCH_SIZE_THRESHOLD_MEDIUM:
+        # Medium: balance speed and memory
+        base_batch = BATCH_SIZE_MEDIUM
+    elif number_of_bootstrap_samples < BATCH_SIZE_THRESHOLD_LARGE:
+        # Large: prioritize throughput
+        base_batch = BATCH_SIZE_LARGE
+    else:
+        # Massive: optimize memory efficiency
+        base_batch = BATCH_SIZE_MASSIVE
+
+    # Adjust for memory constraints
+    if available_memory_gb < MEMORY_LOW_THRESHOLD:
+        # Low memory: conservative batching
+        base_batch = min(base_batch, 64)
+    elif available_memory_gb < MEMORY_MODERATE_THRESHOLD:
+        # Moderate memory
+        base_batch = min(base_batch, BATCH_SIZE_MEDIUM)
+
+    # Adjust for sample complexity (large samples need smaller batches)
+    if sample_size > LARGE_SAMPLE_THRESHOLD:
+        base_batch = max(32, base_batch // 2)
+
+    # Ensure batch size is reasonable relative to total samples
+    # At least 4 batches per worker for load balancing
+    min_batch = max(1, number_of_bootstrap_samples // (n_workers * 4))
+    max_batch = max(min_batch, number_of_bootstrap_samples // max(1, n_workers))
+
+    return int(np.clip(base_batch, min_batch, max_batch))
+
+
 def bootstrap_resampling(
     sample_function: Callable[
         [np.random.Generator], Union[float, npt.NDArray[np.floating]]
@@ -472,10 +593,11 @@ def bootstrap_resampling(
     number_of_bootstrap_samples: int = DEFAULT_BOOTSTRAP_SAMPLES,
     seed: Optional[int] = DEFAULT_SEED,
     n_jobs: int = DEFAULT_N_JOBS,
-    batch_size: Optional[int] = None,
+    batch_size: Optional[Union[int, str]] = None,
+    sample_size_hint: Optional[int] = None,
 ) -> npt.NDArray[np.floating]:
     """Perform bootstrap resampling with optimized parallel processing.
-    
+
     Efficiently generates bootstrap statistics using lazy RNG creation,
     batch processing, and optimized memory management for large-scale datasets.
 
@@ -490,11 +612,15 @@ def bootstrap_resampling(
         Seed for reproducibility. Default is 42.
     n_jobs : int, optional
         Number of parallel jobs. -1 uses all available cores. Default is -1.
-    batch_size : int, optional
-        Number of samples per batch for parallel processing. 
-        If None, uses 'auto' for dynamic batch sizing. 
-        Larger batches reduce overhead but increase memory per worker.
-        Default is None (auto).
+    batch_size : int or str, optional
+        Number of samples per batch for parallel processing.
+        - None or 'auto': Uses joblib's dynamic batch sizing (default).
+        - 'smart': Intelligent batch sizing based on workload and system resources.
+        - int: Manual batch size specification.
+        Default is None.
+    sample_size_hint : int, optional
+        Hint about sample size for smart batch sizing optimization.
+        Only used when batch_size='smart'. Default is None.
 
     Returns
     -------
@@ -515,25 +641,35 @@ def bootstrap_resampling(
     >>> results = bootstrap_resampling(sample_mean, 1000)
     >>> len(results)
     1000
-    
-    >>> # For large datasets, specify batch size for optimal performance
-    >>> results = bootstrap_resampling(sample_mean, 1000000, batch_size=1000)
+
+    >>> # Smart mode: auto-optimizes based on workload and system resources
+    >>> results = bootstrap_resampling(
+    ...     sample_mean, 1000000, batch_size='smart', sample_size_hint=1000
+    ... )
+    >>> len(results)
+    1000000
+
+    >>> # Manual mode: explicit batch size control
+    >>> results = bootstrap_resampling(sample_mean, 1000000, batch_size=2000)
     >>> len(results)
     1000000
 
     Notes
     -----
     **Optimizations:**
-    
-    1. **Speed**: Uses lazy RNG generation and batch processing to minimize 
+
+    1. **Speed**: Uses lazy RNG generation and batch processing to minimize
        overhead. Suitable for datasets with >1M entries.
     2. **Memory**: Avoids upfront RNG list creation, reducing memory by ~O(n).
        Creates generators on-demand in parallel workers.
-    3. **Parallelism**: Uses joblib with optimized batch_size and 'processes' 
+    3. **Parallelism**: Uses joblib with optimized batch_size and 'processes'
        backend for CPU-bound bootstrap operations.
-    4. **Readability**: Modular design with helper functions for clear separation
-       of concerns.
-    
+    4. **Smart Mode**: Automatically selects optimal batch size based on:
+       - Number of bootstrap samples (workload scale)
+       - Sample size (memory per operation)
+       - Available system memory
+       - Number of CPU cores
+
     Time complexity: O(n * f) where n is bootstrap samples, f is sample function cost.
     Space complexity: O(n) for results only, avoiding intermediate storage.
     """
@@ -543,24 +679,43 @@ def bootstrap_resampling(
         # Generate seed sequences lazily to avoid storing all RNGs in memory
         base_seed_sequence = np.random.SeedSequence(seed)
         spawned_seeds = base_seed_sequence.spawn(number_of_bootstrap_samples)
-        
+
+        # Determine effective batch size
+        effective_batch_size: Union[int, str]
+        if batch_size == "smart":
+            # Smart mode: compute optimal batch size
+            if sample_size_hint is None:
+                # Default to medium workload if no hint provided
+                sample_size_hint = 1000
+            effective_batch_size = _compute_optimal_batch_size(
+                number_of_bootstrap_samples,
+                sample_size_hint,
+                n_jobs,
+            )
+        elif batch_size is None:
+            # Default: use joblib's auto mode
+            effective_batch_size = "auto"
+        else:
+            # Manual specification
+            effective_batch_size = batch_size
+
         # Configure parallel execution with optimized settings
         # - prefer='processes': Better for CPU-bound bootstrap operations
         # - batch_size: Controls memory/speed tradeoff
         # - return_as='generator': Could be used for streaming, but array is more efficient here
         parallel_executor = Parallel(
             n_jobs=n_jobs,
-            prefer='processes',
-            batch_size=batch_size or 'auto',
+            prefer="processes",
+            batch_size=effective_batch_size,
         )
-        
+
         # Execute bootstrap samples in parallel with lazy RNG creation
         # Seeds are passed directly, RNGs created in workers
         bootstrap_results = parallel_executor(
             delayed(_execute_bootstrap_sample)(sample_function, seed_seq)
             for seed_seq in spawned_seeds
         )
-        
+
         # Convert to numpy array efficiently (joblib returns list)
         return np.asarray(bootstrap_results, dtype=np.float64)
 

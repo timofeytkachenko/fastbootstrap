@@ -54,6 +54,24 @@ MAX_BOOTSTRAP_SAMPLES: Final[int] = 100000
 DEFAULT_BATCH_SIZE: Final[int] = 1000
 MEMORY_LIMIT_MB: Final[int] = 1000
 
+# Smart batch size thresholds (based on number of bootstrap samples)
+BATCH_SIZE_THRESHOLD_SMALL: Final[int] = 10_000
+BATCH_SIZE_THRESHOLD_MEDIUM: Final[int] = 100_000
+BATCH_SIZE_THRESHOLD_LARGE: Final[int] = 500_000
+
+# Smart batch size values
+BATCH_SIZE_SMALL: Final[int] = 128  # For < 10K samples
+BATCH_SIZE_MEDIUM: Final[int] = 256  # For 10K-100K samples
+BATCH_SIZE_LARGE: Final[int] = 512  # For 100K-500K samples
+BATCH_SIZE_MASSIVE: Final[int] = 1000  # For > 500K samples
+
+# Memory constraint thresholds (GB)
+MEMORY_LOW_THRESHOLD: Final[float] = 4.0
+MEMORY_MODERATE_THRESHOLD: Final[float] = 8.0
+
+# Sample size threshold for batch size adjustment
+LARGE_SAMPLE_THRESHOLD: Final[int] = 100_000
+
 # Error messages
 ERROR_MESSAGES: Final[dict[str, str]] = {
     "invalid_confidence_level": "Confidence level must be between 0 and 1",

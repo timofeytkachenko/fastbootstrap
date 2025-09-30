@@ -44,7 +44,7 @@ def one_sample_bootstrap(
     return_distribution: bool = False,
     seed: Optional[int] = DEFAULT_SEED,
     n_jobs: int = DEFAULT_N_JOBS,
-    batch_size: Optional[int] = None,
+    batch_size: Optional[Union[int, str]] = None,
     plot: bool = False,
 ) -> Dict[str, Union[float, npt.NDArray[np.floating], None]]:
     """Perform one-sample bootstrap for confidence interval estimation.
@@ -70,9 +70,12 @@ def one_sample_bootstrap(
         Random seed for reproducibility. Default is None.
     n_jobs : int, optional
         Number of parallel jobs. -1 uses all available cores. Default is -1.
-    batch_size : int, optional
-        Number of bootstrap samples per batch for parallel processing.
-        If None, uses 'auto' for dynamic batch sizing. Default is None.
+    batch_size : int or str, optional
+        Batch size for parallel processing:
+        - None or 'auto': Dynamic batch sizing (default)
+        - 'smart': Intelligent batch sizing based on workload and resources
+        - int: Manual batch size specification
+        Default is None.
     plot : bool, optional
         Whether to plot the bootstrap distribution. Default is False.
 
@@ -136,8 +139,14 @@ def one_sample_bootstrap(
         return statistic(bootstrap_sample)
 
     # Generate bootstrap samples
+    # Pass sample_size_hint for smart batch sizing
     bootstrap_stats = bootstrap_resampling(
-        sample_function, number_of_bootstrap_samples, seed, n_jobs, batch_size
+        sample_function,
+        number_of_bootstrap_samples,
+        seed,
+        n_jobs,
+        batch_size,
+        sample_size_hint=sample_size,
     )
     original_stat = statistic(sample)
 
@@ -216,7 +225,7 @@ def two_sample_bootstrap(
     return_distribution: bool = False,
     seed: Optional[int] = DEFAULT_SEED,
     n_jobs: int = DEFAULT_N_JOBS,
-    batch_size: Optional[int] = None,
+    batch_size: Optional[Union[int, str]] = None,
     plot: bool = False,
 ) -> Dict[str, Union[float, npt.NDArray[np.floating], None]]:
     """Perform two-sample bootstrap for comparing two groups.
@@ -241,9 +250,12 @@ def two_sample_bootstrap(
         Random seed for reproducibility. Default is None.
     n_jobs : int, optional
         Number of parallel jobs. -1 uses all available cores. Default is -1.
-    batch_size : int, optional
-        Number of bootstrap samples per batch for parallel processing.
-        If None, uses 'auto' for dynamic batch sizing. Default is None.
+    batch_size : int or str, optional
+        Batch size for parallel processing:
+        - None or 'auto': Dynamic batch sizing (default)
+        - 'smart': Intelligent batch sizing based on workload and resources
+        - int: Manual batch size specification
+        Default is None.
     plot : bool, optional
         Whether to plot the bootstrap distribution. Default is False.
 
@@ -303,8 +315,19 @@ def two_sample_bootstrap(
         return statistic(control_sample, treatment_sample)
 
     # Generate bootstrap distribution
+    # Pass combined sample size for smart batch sizing
+    combined_sample_size = (
+        (control_sample_size + treatment_sample_size)
+        if sample_size is None
+        else (2 * sample_size)
+    )
     bootstrap_distribution = bootstrap_resampling(
-        sample_function, number_of_bootstrap_samples, seed, n_jobs, batch_size
+        sample_function,
+        number_of_bootstrap_samples,
+        seed,
+        n_jobs,
+        batch_size,
+        sample_size_hint=combined_sample_size,
     )
 
     # Calculate statistics
@@ -669,7 +692,7 @@ def bootstrap(
     return_distribution: bool = False,
     seed: Optional[int] = DEFAULT_SEED,
     n_jobs: int = DEFAULT_N_JOBS,
-    batch_size: Optional[int] = None,
+    batch_size: Optional[Union[int, str]] = None,
     plot: bool = False,
 ) -> Dict[str, Union[float, npt.NDArray[np.floating], None]]:
     """Unified bootstrap function that automatically selects the appropriate method.
@@ -701,9 +724,12 @@ def bootstrap(
         Random seed for reproducibility. Default is None.
     n_jobs : int, optional
         Number of parallel jobs. -1 uses all available cores. Default is -1.
-    batch_size : int, optional
-        Number of bootstrap samples per batch for parallel processing.
-        If None, uses 'auto' for dynamic batch sizing. Default is None.
+    batch_size : int or str, optional
+        Batch size for parallel processing:
+        - None or 'auto': Dynamic batch sizing (default)
+        - 'smart': Intelligent batch sizing based on workload and resources
+        - int: Manual batch size specification
+        Default is None.
     plot : bool, optional
         Whether to plot the bootstrap distribution. Default is False.
 
@@ -725,10 +751,10 @@ def bootstrap(
     >>> 'statistic_value' in result
     True
 
-    >>> # Two-sample bootstrap
+    >>> # Two-sample bootstrap with smart batch sizing
     >>> control = np.array([1, 2, 3, 4, 5])
     >>> treatment = np.array([2, 3, 4, 5, 6])
-    >>> result = bootstrap(control, treatment)
+    >>> result = bootstrap(control, treatment, batch_size='smart')
     >>> 'p_value' in result
     True
 

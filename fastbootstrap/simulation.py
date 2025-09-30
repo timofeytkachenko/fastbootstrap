@@ -106,8 +106,8 @@ def ab_test_simulation(
         # Run experiments in parallel with optimized batch processing
         ab_p_values = Parallel(
             n_jobs=n_jobs,
-            prefer='processes',
-            batch_size=batch_size or 'auto',
+            prefer="processes",
+            batch_size=batch_size or "auto",
         )(delayed(single_experiment)() for _ in range(number_of_experiments))
         ab_p_values = np.array(ab_p_values)
 
@@ -209,8 +209,8 @@ def aa_test_simulation(
         # Run experiments in parallel with optimized batch processing
         aa_p_values = Parallel(
             n_jobs=n_jobs,
-            prefer='processes',
-            batch_size=batch_size or 'auto',
+            prefer="processes",
+            batch_size=batch_size or "auto",
         )(delayed(single_aa_experiment)() for _ in range(number_of_experiments))
         aa_p_values = np.array(aa_p_values)
 
