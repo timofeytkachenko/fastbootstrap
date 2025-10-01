@@ -72,6 +72,11 @@ MEMORY_MODERATE_THRESHOLD: Final[float] = 8.0
 # Sample size threshold for batch size adjustment
 LARGE_SAMPLE_THRESHOLD: Final[int] = 100_000
 
+# BCa method thresholds
+JACKKNIFE_PARALLEL_THRESHOLD: Final[int] = (
+    1000  # Minimum sample size for parallel jackknife
+)
+
 # Error messages
 ERROR_MESSAGES: Final[dict[str, str]] = {
     "invalid_confidence_level": "Confidence level must be between 0 and 1",

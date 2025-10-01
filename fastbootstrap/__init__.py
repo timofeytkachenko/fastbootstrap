@@ -6,8 +6,9 @@ hypothesis testing, and specialized methods like Spotify-style bootstrap.
 
 Key Features
 ------------
-- **Multiple bootstrap methods**: Percentile, BCa, Basic, Studentized, Spotify-style, Poisson
+- **Multiple bootstrap methods**: Percentile, BCa (bias-corrected & accelerated), Basic, Studentized, Spotify-style, Poisson
 - **High performance**: Parallel processing with joblib, optimized NumPy operations
+- **Robust BCa implementation**: Enhanced corner case handling, optional parallelization for large samples
 - **Smart batch sizing**: Intelligent auto-optimization for 5-30% performance gains
 - **Comprehensive statistics**: Confidence intervals, p-values, effect sizes, power analysis
 - **Flexible API**: Unified interface with method auto-selection
@@ -29,6 +30,10 @@ Quick Start
 >>> treatment = np.random.normal(0.5, 1, 100)
 >>> result = fb.bootstrap(control, treatment, batch_size='smart')
 >>> print(f"P-value: {result['p_value']:.4f}")
+>>>
+>>> # BCa confidence interval (bias-corrected & accelerated)
+>>> result_bca = fb.bootstrap(sample, method='bca')
+>>> print(f"BCa CI: {result_bca['confidence_interval']}")
 
 Performance
 -----------
@@ -102,6 +107,8 @@ from .constants import (
     MEMORY_LOW_THRESHOLD,
     MEMORY_MODERATE_THRESHOLD,
     LARGE_SAMPLE_THRESHOLD,
+    # BCa method configuration
+    JACKKNIFE_PARALLEL_THRESHOLD,
 )
 
 # Core statistical functions
@@ -111,7 +118,6 @@ from .core import (
     estimate_bin_params,
     estimate_confidence_interval,
     estimate_p_value,
-    jackknife_indices,
 )
 
 # Exceptions
@@ -178,7 +184,6 @@ __all__ = [
     "estimate_p_value",
     "bca_confidence_interval",
     "estimate_bin_params",
-    "jackknife_indices",
     # Comparison functions
     "difference",
     "difference_of_mean",
@@ -242,6 +247,8 @@ __all__ = [
     "MEMORY_LOW_THRESHOLD",
     "MEMORY_MODERATE_THRESHOLD",
     "LARGE_SAMPLE_THRESHOLD",
+    # Constants - BCa method
+    "JACKKNIFE_PARALLEL_THRESHOLD",
     # Exceptions
     "FastBootstrapError",
     "ValidationError",
