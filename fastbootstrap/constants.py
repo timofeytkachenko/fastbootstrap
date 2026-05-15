@@ -54,16 +54,16 @@ MAX_BOOTSTRAP_SAMPLES: Final[int] = 100000
 DEFAULT_BATCH_SIZE: Final[int] = 1000
 MEMORY_LIMIT_MB: Final[int] = 1000
 
-# Smart batch size thresholds (based on number of bootstrap samples)
+# Smart batch size thresholds (inclusive right edges, by number of bootstrap samples)
 BATCH_SIZE_THRESHOLD_SMALL: Final[int] = 10_000
 BATCH_SIZE_THRESHOLD_MEDIUM: Final[int] = 100_000
 BATCH_SIZE_THRESHOLD_LARGE: Final[int] = 500_000
 
 # Smart batch size values
-BATCH_SIZE_SMALL: Final[int] = 128  # For < 10K samples
-BATCH_SIZE_MEDIUM: Final[int] = 256  # For 10K-100K samples
-BATCH_SIZE_LARGE: Final[int] = 512  # For 100K-500K samples
-BATCH_SIZE_MASSIVE: Final[int] = 1000  # For > 500K samples
+BATCH_SIZE_SMALL: Final[int] = 128  # For N <= 10K samples
+BATCH_SIZE_MEDIUM: Final[int] = 256  # For 10K < N <= 100K samples
+BATCH_SIZE_LARGE: Final[int] = 512  # For 100K < N <= 500K samples
+BATCH_SIZE_MASSIVE: Final[int] = 1000  # For N > 500K samples
 
 # Memory constraint thresholds (GB)
 MEMORY_LOW_THRESHOLD: Final[float] = 4.0
@@ -71,6 +71,16 @@ MEMORY_MODERATE_THRESHOLD: Final[float] = 8.0
 
 # Sample size threshold for batch size adjustment
 LARGE_SAMPLE_THRESHOLD: Final[int] = 100_000
+
+# Smart batch sizing bounds and tuning knobs
+MIN_BATCH_FLOOR: Final[int] = 16  # Absolute lower floor for any batch size
+MIN_BATCHES_PER_WORKER: Final[int] = 4  # Load-balancing target (>=4 chunks/worker)
+SAMPLE_COMPLEXITY_DIVISOR: Final[int] = 2  # Halving factor for large samples
+LOW_MEM_BATCH_CAP: Final[int] = 64  # Cap when RAM < MEMORY_LOW_THRESHOLD
+
+# Memory-aware sizing parameters
+MEM_FRACTION: Final[float] = 0.25  # Fraction of free RAM budgeted per call
+DEFAULT_DTYPE_BYTES: Final[int] = 8  # Bytes per element (float64 default)
 
 # BCa method thresholds
 JACKKNIFE_PARALLEL_THRESHOLD: Final[int] = (

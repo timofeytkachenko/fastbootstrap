@@ -5,6 +5,7 @@ core statistical utilities for bootstrap analysis.
 """
 
 import warnings
+from functools import lru_cache
 from typing import Callable, Optional, Union
 
 import numpy as np
@@ -23,15 +24,21 @@ from .constants import (
     BATCH_SIZE_THRESHOLD_SMALL,
     DEFAULT_BOOTSTRAP_SAMPLES,
     DEFAULT_CONFIDENCE_LEVEL,
+    DEFAULT_DTYPE_BYTES,
     DEFAULT_N_JOBS,
     DEFAULT_SEED,
     EPSILON,
     ERROR_MESSAGES,
     JACKKNIFE_PARALLEL_THRESHOLD,
     LARGE_SAMPLE_THRESHOLD,
+    LOW_MEM_BATCH_CAP,
+    MEM_FRACTION,
     MEMORY_LOW_THRESHOLD,
     MEMORY_MODERATE_THRESHOLD,
+    MIN_BATCH_FLOOR,
+    MIN_BATCHES_PER_WORKER,
     MIN_SAMPLE_SIZE,
+    SAMPLE_COMPLEXITY_DIVISOR,
 )
 from .exceptions import InsufficientDataError, NumericalError, ValidationError
 
@@ -652,112 +659,223 @@ def _execute_bootstrap_sample(
     return sample_function(rng)
 
 
+@lru_cache(maxsize=2)
+def _detect_cpu_count(logical: bool = False) -> int:
+    """Detect the number of CPU cores, with a safe fallback.
+
+    Cached at module level since hardware topology does not change at runtime.
+    Prefers physical cores for CPU-bound parallel workloads; falls back to
+    logical cores and finally to ``1`` if detection fails.
+
+    Parameters
+    ----------
+    logical : bool, optional
+        If ``True``, count logical cores (SMT/hyper-threads). If ``False``
+        (default), count physical cores.
+
+    Returns
+    -------
+    int
+        Number of CPU cores, guaranteed to be ``>= 1``.
+    """
+    count = psutil.cpu_count(logical=logical)
+    if count is None and not logical:
+        count = psutil.cpu_count(logical=True)
+    return int(count) if count and count > 0 else 1
+
+
+def _resolve_n_workers(n_jobs: int) -> int:
+    """Resolve effective worker count from a joblib-style ``n_jobs`` value.
+
+    Follows joblib semantics:
+
+    - ``n_jobs == -1`` -> all physical cores
+    - ``n_jobs == -k`` (k > 0) -> ``cpu_count + 1 + n_jobs`` (e.g. -2 = all but one)
+    - ``n_jobs >= 1`` -> capped at ``cpu_count``
+    - ``n_jobs == 0`` -> invalid
+
+    Parameters
+    ----------
+    n_jobs : int
+        joblib-compatible number of jobs.
+
+    Returns
+    -------
+    int
+        Resolved worker count, ``>= 1``.
+
+    Raises
+    ------
+    ValidationError
+        If ``n_jobs`` is ``0`` or otherwise invalid.
+    """
+    if n_jobs == 0:
+        raise ValidationError(
+            "n_jobs must be -k (k>=1) or a positive integer, got 0",
+            parameter="n_jobs",
+            value=n_jobs,
+        )
+
+    cpu = _detect_cpu_count(logical=False)
+
+    if n_jobs < 0:
+        # joblib convention: -1 == all cores, -2 == all but one, etc.
+        return max(1, cpu + 1 + n_jobs)
+    return max(1, min(int(n_jobs), cpu))
+
+
 def _compute_optimal_batch_size(
     number_of_bootstrap_samples: int,
     sample_size: int,
     n_jobs: int,
     available_memory_gb: Optional[float] = None,
+    dtype_bytes: int = DEFAULT_DTYPE_BYTES,
 ) -> int:
-    """Compute optimal batch size for bootstrap parallel processing.
+    """Compute an optimal joblib batch size for bootstrap parallel processing.
 
-    Implements heuristics from README.md for intelligent batch sizing based on:
-    - Number of bootstrap samples (workload scale)
-    - Sample size (memory per operation)
-    - Available system memory
-    - Number of parallel workers
+    Selects a batch size that balances dispatch overhead, memory pressure,
+    and worker load-balancing. The algorithm picks a workload-scale base from
+    the documented heuristic table, applies memory-tier and sample-complexity
+    dampening, then clamps the result by a per-call memory budget and a
+    load-balancing upper bound (``>= MIN_BATCHES_PER_WORKER`` chunks per worker).
 
     Parameters
     ----------
     number_of_bootstrap_samples : int
-        Total number of bootstrap iterations.
+        Total number of bootstrap iterations. Must be positive.
     sample_size : int
-        Size of each sample being resampled.
+        Size of each sample being resampled. Must be ``>= MIN_SAMPLE_SIZE``.
     n_jobs : int
-        Number of parallel workers (-1 for all cores).
+        Number of parallel workers using joblib conventions
+        (``-1`` = all cores, ``-k`` = all but ``k-1``, ``>=1`` = explicit count).
     available_memory_gb : float, optional
-        Available system memory in GB. Auto-detected if None.
+        Available system memory in GB. Auto-detected via ``psutil`` if ``None``.
+    dtype_bytes : int, optional
+        Bytes per resampled element, used for the memory-aware cap.
+        Defaults to ``DEFAULT_DTYPE_BYTES`` (8, i.e. ``float64``).
 
     Returns
     -------
     int
-        Optimal batch size balancing speed and memory.
+        Optimal batch size, ``>= MIN_BATCH_FLOOR`` and ``<=`` the load-balancing cap.
+
+    Raises
+    ------
+    ValidationError
+        If ``number_of_bootstrap_samples``, ``sample_size`` or ``n_jobs`` is invalid.
 
     Notes
     -----
-    **Heuristics** (from README.md):
+    Heuristic table (inclusive right edges, see README):
 
-    - Small datasets (< 10K): batch_size = 128 (minimize overhead)
-    - Medium datasets (10K-100K): batch_size = 256 (balance)
-    - Large datasets (100K-500K): batch_size = 512 (reduce memory)
-    - Massive datasets (> 500K): batch_size = 1000 (optimize memory)
+    - ``N <= 10K`` -> 128 (minimise dispatch overhead)
+    - ``10K < N <= 100K`` -> 256 (balance speed/memory)
+    - ``100K < N <= 500K`` -> 512 (maximise throughput)
+    - ``N > 500K`` -> 1000 (optimise memory)
 
-    **Memory Constraints:**
+    Memory-tier dampening:
 
-    - < 4 GB available: conservative batching (cap at 64)
-    - < 8 GB available: moderate batching (cap at 256)
-    - >= 8 GB available: aggressive batching
+    - ``< MEMORY_LOW_THRESHOLD`` GB -> cap at ``LOW_MEM_BATCH_CAP`` (64)
+    - ``< MEMORY_MODERATE_THRESHOLD`` GB -> cap at ``BATCH_SIZE_MEDIUM`` (256)
 
-    **Sample Size Adjustments:**
+    Sample-complexity dampening:
 
-    - Large samples (> 100K elements): reduce batch size by half
+    - ``sample_size > LARGE_SAMPLE_THRESHOLD`` -> divide base by
+      ``SAMPLE_COMPLEXITY_DIVISOR``, with ``MIN_BATCH_FLOOR`` as the floor.
 
-    Time complexity: O(1).
-    Space complexity: O(1).
+    Memory-aware cap (new):
+
+    ``mem_cap = floor(MEM_FRACTION * available_bytes
+                      / (sample_size * dtype_bytes * n_workers))``
+
+    Load-balancing cap (new, replaces the previously inverted ``min_batch``):
+
+    ``max_batch = max(MIN_BATCH_FLOOR,
+                      N // (n_workers * MIN_BATCHES_PER_WORKER))``
+
+    Final value: ``clip(min(base, mem_cap), MIN_BATCH_FLOOR, max_batch)``.
+
+    Time complexity: ``O(1)``. Space complexity: ``O(1)``.
 
     Examples
     --------
-    >>> # Auto-detect memory and compute batch size
+    >>> # Auto-detect memory and compute batch size for a medium workload
     >>> batch_size = _compute_optimal_batch_size(100_000, 1000, -1)
-    >>> batch_size in [128, 256, 512]
+    >>> batch_size >= 16
     True
 
-    >>> # Specify available memory explicitly
-    >>> batch_size = _compute_optimal_batch_size(1_000_000, 5000, -1, available_memory_gb=16.0)
-    >>> batch_size >= 256
+    >>> # Explicit memory, massive workload, default float64 elements
+    >>> bs = _compute_optimal_batch_size(
+    ...     1_000_000, 5_000, -1, available_memory_gb=16.0
+    ... )
+    >>> bs >= 16
     True
     """
-    # Auto-detect available memory if not provided
+    # Input validation: fail loudly on impossible configurations.
+    if number_of_bootstrap_samples <= 0:
+        raise ValidationError(
+            ERROR_MESSAGES["invalid_bootstrap_samples"],
+            parameter="number_of_bootstrap_samples",
+            value=number_of_bootstrap_samples,
+        )
+    if sample_size < MIN_SAMPLE_SIZE:
+        raise ValidationError(
+            ERROR_MESSAGES["invalid_sample_size"],
+            parameter="sample_size",
+            value=sample_size,
+        )
+    if dtype_bytes <= 0:
+        raise ValidationError(
+            "dtype_bytes must be positive",
+            parameter="dtype_bytes",
+            value=dtype_bytes,
+        )
+
+    # Resolve worker count via joblib conventions (also validates n_jobs).
+    n_workers = _resolve_n_workers(n_jobs)
+
+    # Detect available memory once; user-supplied values bypass psutil.
     if available_memory_gb is None:
         available_memory_gb = psutil.virtual_memory().available / (1024**3)
 
-    # Determine effective worker count
-    if n_jobs == -1:
-        n_workers = psutil.cpu_count(logical=True) or 1
-    else:
-        n_workers = min(n_jobs, psutil.cpu_count(logical=True) or 1)
-
-    # Heuristic-based batch sizing by workload scale
-    if number_of_bootstrap_samples < BATCH_SIZE_THRESHOLD_SMALL:
-        # Small: minimize parallelization overhead
+    # Workload-scale base: inclusive right edges align with README table.
+    if number_of_bootstrap_samples <= BATCH_SIZE_THRESHOLD_SMALL:
         base_batch = BATCH_SIZE_SMALL
-    elif number_of_bootstrap_samples < BATCH_SIZE_THRESHOLD_MEDIUM:
-        # Medium: balance speed and memory
+    elif number_of_bootstrap_samples <= BATCH_SIZE_THRESHOLD_MEDIUM:
         base_batch = BATCH_SIZE_MEDIUM
-    elif number_of_bootstrap_samples < BATCH_SIZE_THRESHOLD_LARGE:
-        # Large: prioritize throughput
+    elif number_of_bootstrap_samples <= BATCH_SIZE_THRESHOLD_LARGE:
         base_batch = BATCH_SIZE_LARGE
     else:
-        # Massive: optimize memory efficiency
         base_batch = BATCH_SIZE_MASSIVE
 
-    # Adjust for memory constraints
+    # Memory-tier dampening: throttle base on RAM-constrained systems.
     if available_memory_gb < MEMORY_LOW_THRESHOLD:
-        # Low memory: conservative batching
-        base_batch = min(base_batch, 64)
+        base_batch = min(base_batch, LOW_MEM_BATCH_CAP)
     elif available_memory_gb < MEMORY_MODERATE_THRESHOLD:
-        # Moderate memory
         base_batch = min(base_batch, BATCH_SIZE_MEDIUM)
 
-    # Adjust for sample complexity (large samples need smaller batches)
+    # Sample-complexity dampening: halve base for very wide samples.
     if sample_size > LARGE_SAMPLE_THRESHOLD:
-        base_batch = max(32, base_batch // 2)
+        base_batch = max(MIN_BATCH_FLOOR, base_batch // SAMPLE_COMPLEXITY_DIVISOR)
 
-    # Ensure batch size is reasonable relative to total samples
-    # At least 4 batches per worker for load balancing
-    min_batch = max(1, number_of_bootstrap_samples // (n_workers * 4))
-    max_batch = max(min_batch, number_of_bootstrap_samples // max(1, n_workers))
+    # Memory-aware cap: how many resamples fit into MEM_FRACTION of free RAM,
+    # split across workers. Guards against batches that would OOM on big arrays.
+    available_bytes = available_memory_gb * (1024**3)
+    per_sample_cost = max(1, sample_size * dtype_bytes * n_workers)
+    mem_cap = max(
+        MIN_BATCH_FLOOR, int(MEM_FRACTION * available_bytes // per_sample_cost)
+    )
 
-    return int(np.clip(base_batch, min_batch, max_batch))
+    # Load-balancing cap: ensure at least MIN_BATCHES_PER_WORKER chunks per worker.
+    # This is the *upper* bound (was inverted in the previous implementation).
+    max_batch = max(
+        MIN_BATCH_FLOOR,
+        number_of_bootstrap_samples // (n_workers * MIN_BATCHES_PER_WORKER),
+    )
+
+    # Final clamp using native min/max (cheaper than np.clip for scalars).
+    candidate = min(base_batch, mem_cap, max_batch)
+    return max(MIN_BATCH_FLOOR, candidate)
 
 
 def bootstrap_resampling(

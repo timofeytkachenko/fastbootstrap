@@ -49,7 +49,7 @@ See Also
 - Performance: README.md benchmarks section
 """
 
-__version__ = "1.8.0"
+__version__ = "1.8.4"
 __author__ = "Timofey Tkachenko"
 __email__ = "timofey_tkachenko@pm.me"
 __license__ = "MIT"
@@ -107,6 +107,13 @@ from .constants import (
     MEMORY_LOW_THRESHOLD,
     MEMORY_MODERATE_THRESHOLD,
     LARGE_SAMPLE_THRESHOLD,
+    # Smart batch sizing tuning knobs
+    MIN_BATCH_FLOOR,
+    MIN_BATCHES_PER_WORKER,
+    SAMPLE_COMPLEXITY_DIVISOR,
+    LOW_MEM_BATCH_CAP,
+    MEM_FRACTION,
+    DEFAULT_DTYPE_BYTES,
     # BCa method configuration
     JACKKNIFE_PARALLEL_THRESHOLD,
 )
@@ -247,6 +254,13 @@ __all__ = [
     "MEMORY_LOW_THRESHOLD",
     "MEMORY_MODERATE_THRESHOLD",
     "LARGE_SAMPLE_THRESHOLD",
+    # Constants - Smart batch sizing tuning knobs
+    "MIN_BATCH_FLOOR",
+    "MIN_BATCHES_PER_WORKER",
+    "SAMPLE_COMPLEXITY_DIVISOR",
+    "LOW_MEM_BATCH_CAP",
+    "MEM_FRACTION",
+    "DEFAULT_DTYPE_BYTES",
     # Constants - BCa method
     "JACKKNIFE_PARALLEL_THRESHOLD",
     # Exceptions
