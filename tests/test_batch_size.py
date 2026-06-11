@@ -4,16 +4,19 @@ Covers:
 - README-aligned heuristic buckets (10K/100K/500K/1M+ samples).
 - Edge cases for tiny workloads and minimal samples.
 - Memory squeeze (low/high `available_memory_gb`).
+- Batch-invariant peak-memory `ResourceWarning`.
 - Load-balancing invariant (>= MIN_BATCHES_PER_WORKER chunks per worker).
 - Input validation via `ValidationError`.
-- joblib n_jobs conventions in `_resolve_n_workers`.
+- joblib `effective_n_jobs` alignment in `_resolve_n_workers`.
 """
 
 from __future__ import annotations
 
 import math
+import warnings
 
 import pytest
+from joblib import effective_n_jobs
 
 from fastbootstrap.constants import (
     BATCH_SIZE_LARGE,
@@ -27,7 +30,6 @@ from fastbootstrap.constants import (
 )
 from fastbootstrap.core import (
     _compute_optimal_batch_size,
-    _detect_cpu_count,
     _resolve_n_workers,
 )
 from fastbootstrap.exceptions import ValidationError
@@ -39,20 +41,17 @@ from fastbootstrap.exceptions import ValidationError
 
 
 class TestResolveNWorkers:
-    """Cover joblib-style ``n_jobs`` interpretation."""
+    """Cover joblib-style ``n_jobs`` interpretation via ``effective_n_jobs``."""
 
-    def test_all_cores(self) -> None:
-        assert _resolve_n_workers(-1) == _detect_cpu_count(logical=False)
+    @pytest.mark.parametrize("n_jobs", [-1, -2, 1, 4, 64])
+    def test_matches_joblib(self, n_jobs: int) -> None:
+        """Resolution must mirror what ``Parallel`` would actually use."""
+        assert _resolve_n_workers(n_jobs) == max(1, effective_n_jobs(n_jobs))
 
-    def test_all_but_one(self) -> None:
-        cpu = _detect_cpu_count(logical=False)
-        expected = max(1, cpu - 1)
-        assert _resolve_n_workers(-2) == expected
-
-    def test_positive_capped(self) -> None:
-        cpu = _detect_cpu_count(logical=False)
+    def test_explicit_positive_is_not_capped(self) -> None:
+        """loky allows oversubscription for explicit positive ``n_jobs``."""
         assert _resolve_n_workers(1) == 1
-        assert _resolve_n_workers(cpu * 4) == cpu
+        assert _resolve_n_workers(64) == 64
 
     def test_zero_raises(self) -> None:
         with pytest.raises(ValidationError):
@@ -169,16 +168,29 @@ def test_moderate_memory_caps_to_medium() -> None:
     assert batch <= BATCH_SIZE_MEDIUM
 
 
-def test_memory_aware_cap_dominates_on_huge_samples() -> None:
-    """For very wide samples on tight RAM, mem_cap should bite before base."""
-    batch = _compute_optimal_batch_size(
-        1_000_000,
-        sample_size=10_000_000,  # 80 MB per resample at float64
-        n_jobs=1,
-        available_memory_gb=2.0,
-    )
-    # mem_cap ~ 0.25 * 2 GiB / (10M * 8) ~ 6 -> floored to MIN_BATCH_FLOOR.
-    assert batch == MIN_BATCH_FLOOR
+def test_tight_memory_emits_resource_warning() -> None:
+    """Peak memory is batch-invariant: tight RAM warns instead of shrinking batch."""
+    with pytest.warns(ResourceWarning, match="peak resampling memory"):
+        batch = _compute_optimal_batch_size(
+            1_000_000,
+            sample_size=10_000_000,  # 160 MB transient per worker (data + indices)
+            n_jobs=4,
+            available_memory_gb=2.0,
+        )
+    # peak = 4 * 10M * 16 = 640 MB > 0.25 * 2 GiB = 512 MB -> warning.
+    # Batch itself follows low-mem tier (64) halved for wide samples (32),
+    # not crushed to the floor by a phantom per-batch memory cost.
+    assert batch == LOW_MEM_BATCH_CAP // SAMPLE_COMPLEXITY_DIVISOR
+
+
+def test_plentiful_memory_emits_no_warning(big_mem: float) -> None:
+    """No ResourceWarning when the peak estimate fits the budget."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", ResourceWarning)
+        batch = _compute_optimal_batch_size(
+            100_000, sample_size=1_000, n_jobs=4, available_memory_gb=big_mem
+        )
+    assert batch >= MIN_BATCH_FLOOR
 
 
 # ---------------------------------------------------------------------------
@@ -219,6 +231,15 @@ def test_validation_errors(kwargs: dict) -> None:
 def test_dtype_bytes_must_be_positive() -> None:
     with pytest.raises(ValidationError):
         _compute_optimal_batch_size(1_000, sample_size=100, n_jobs=-1, dtype_bytes=0)
+
+
+@pytest.mark.parametrize("bad_memory", [float("nan"), float("inf"), -1.0])
+def test_invalid_available_memory_raises(bad_memory: float) -> None:
+    """NaN, inf or negative memory must fail with ValidationError, not ValueError."""
+    with pytest.raises(ValidationError):
+        _compute_optimal_batch_size(
+            1_000, sample_size=100, n_jobs=1, available_memory_gb=bad_memory
+        )
 
 
 # ---------------------------------------------------------------------------

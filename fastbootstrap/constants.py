@@ -81,6 +81,26 @@ LOW_MEM_BATCH_CAP: Final[int] = 64  # Cap when RAM < MEMORY_LOW_THRESHOLD
 # Memory-aware sizing parameters
 MEM_FRACTION: Final[float] = 0.25  # Fraction of free RAM budgeted per call
 DEFAULT_DTYPE_BYTES: Final[int] = 8  # Bytes per element (float64 default)
+BYTES_PER_GB: Final[int] = 1024**3  # GiB-to-bytes conversion factor
+INDEX_BYTES: Final[int] = 8  # int64 index array created by Generator.choice
+
+# Default resample width assumed by smart batch sizing when no hint is given
+DEFAULT_SAMPLE_SIZE_HINT: Final[int] = 1000
+
+# Lookup tables for bisect-based base-batch selection.
+# bisect_left(BATCH_SIZE_EDGES, N) maps N to its bucket index in BATCH_SIZE_BASES
+# (edges are inclusive right boundaries; see README heuristic table).
+BATCH_SIZE_EDGES: Final[tuple[int, ...]] = (
+    BATCH_SIZE_THRESHOLD_SMALL,
+    BATCH_SIZE_THRESHOLD_MEDIUM,
+    BATCH_SIZE_THRESHOLD_LARGE,
+)
+BATCH_SIZE_BASES: Final[tuple[int, ...]] = (
+    BATCH_SIZE_SMALL,
+    BATCH_SIZE_MEDIUM,
+    BATCH_SIZE_LARGE,
+    BATCH_SIZE_MASSIVE,
+)
 
 # BCa method thresholds
 JACKKNIFE_PARALLEL_THRESHOLD: Final[int] = (

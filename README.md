@@ -397,7 +397,8 @@ four signals at once:
 
 1. **Workload scale** — number of bootstrap iterations (`number_of_bootstrap_samples`).
 2. **Sample complexity** — width of each resample (`sample_size_hint`).
-3. **System resources** — free RAM (via `psutil`) and physical CPU cores.
+3. **System resources** — free RAM (via `psutil`) and the worker count joblib
+   will actually use (`joblib.effective_n_jobs`).
 4. **Load balancing** — guarantees at least `MIN_BATCHES_PER_WORKER = 4`
    chunks per worker so no core sits idle on the tail of the workload.
 
@@ -410,29 +411,33 @@ four signals at once:
 | `100K < N ≤ 500K`       | 512             | Maximize throughput   |
 | `N > 500K`              | 1000            | Optimize memory       |
 
-The base value above is then narrowed by three guard rails:
+The base value above is then narrowed by these guard rails:
 
 - **Low-RAM tier** (`< MEMORY_LOW_THRESHOLD = 4 GB`): cap at `LOW_MEM_BATCH_CAP = 64`.
 - **Moderate-RAM tier** (`4 – 8 GB`): cap at `BATCH_SIZE_MEDIUM = 256`.
 - **Wide samples** (`sample_size > LARGE_SAMPLE_THRESHOLD = 100K`):
   divide base by `SAMPLE_COMPLEXITY_DIVISOR = 2`, with `MIN_BATCH_FLOOR = 16` as the floor.
-- **Memory-aware cap** *(new in 1.8.4)*:
-  `mem_cap = ⌊MEM_FRACTION · free_bytes / (sample_size · dtype_bytes · n_workers)⌋`
-  where `MEM_FRACTION = 0.25` and `dtype_bytes = 8` (float64). This prevents
-  OOM on very wide resamples even when the heuristic table allows a larger batch.
 - **Load-balancing cap** *(fixed in 1.8.4)*:
   `max_batch = ⌊N / (n_workers · MIN_BATCHES_PER_WORKER)⌋` —
   guarantees enough chunks to keep all workers busy. The previous release had
   this clamp inverted, which collapsed the heuristic on large workloads
   (e.g. on 1M samples / 8 workers it returned ~31 250 instead of ~1 000).
 
-Final value: `clip(min(base, mem_cap, max_batch), MIN_BATCH_FLOOR, +∞)`.
+Final value: `clip(base, MIN_BATCH_FLOOR, max_batch)`.
 
-CPU-core selection follows joblib conventions on `n_jobs`
-(`-1` → all physical cores, `-2` → all but one, `≥ 1` → explicit count capped
-by physical CPU count). Physical (non-SMT) cores are preferred because the
-backend is `prefer='processes'` — hyper-threads provide little gain for
-NumPy-bound bootstrap kernels and double the process-spawn cost.
+**Peak-memory check** *(replaces the former per-batch memory cap)*: peak
+resampling RAM is *batch-invariant* — each joblib worker executes its batch
+sequentially and holds roughly one resample at a time, so shrinking the batch
+cannot reduce the peak. Smart mode estimates the peak as
+`n_workers · sample_size · (dtype_bytes + INDEX_BYTES)` (the `+ 8` accounts
+for the transient `int64` index array created by `Generator.choice`) and emits
+a `ResourceWarning` when it exceeds `MEM_FRACTION = 0.25` of available RAM,
+advising to reduce `n_jobs` or `sample_size` instead of silently fragmenting
+the workload into tiny batches.
+
+CPU-core selection delegates to `joblib.effective_n_jobs`, so the estimate
+matches the worker count `Parallel` actually spawns (`-1` → all logical cores,
+`-2` → all but one, `≥ 1` → explicit count, oversubscription allowed).
 
 **Performance Benefits (measured on the same M4 Max):**
 - **20-30% faster** than `batch_size=32` for small workloads (`N ≤ 10K`).
@@ -593,7 +598,7 @@ Or hard-wire a value using the public constants:
 import fastbootstrap as fb
 import psutil
 
-available_gb = psutil.virtual_memory().available / (1024**3)
+available_gb = psutil.virtual_memory().available / fb.BYTES_PER_GB
 if available_gb < fb.MEMORY_LOW_THRESHOLD:
     batch_size = fb.LOW_MEM_BATCH_CAP            # 64
 elif available_gb < fb.MEMORY_MODERATE_THRESHOLD:
@@ -701,8 +706,12 @@ manual reuse:
 | `MIN_BATCHES_PER_WORKER`    | 4        | Load-balancing target: at least `4 × n_workers` chunks per call.           |
 | `SAMPLE_COMPLEXITY_DIVISOR` | 2        | Halving factor for wide samples.                                           |
 | `LOW_MEM_BATCH_CAP`         | 64       | Batch cap when `available_memory_gb < MEMORY_LOW_THRESHOLD`.               |
-| `MEM_FRACTION`              | 0.25     | Fraction of free RAM budgeted per call for the memory-aware cap.           |
-| `DEFAULT_DTYPE_BYTES`       | 8        | Bytes per element (float64) for memory-aware cap arithmetic.               |
+| `MEM_FRACTION`              | 0.25     | Fraction of free RAM budgeted for the peak-memory `ResourceWarning`.       |
+| `DEFAULT_DTYPE_BYTES`       | 8        | Bytes per element (float64) for the peak-memory estimate.                  |
+| `INDEX_BYTES`               | 8        | Bytes per `int64` index from `Generator.choice` fancy indexing.            |
+| `BYTES_PER_GB`              | 2^30     | GiB-to-bytes conversion factor used in memory arithmetic.                  |
+| `DEFAULT_SAMPLE_SIZE_HINT`  | 1000     | Resample width assumed by smart mode when no hint is given.                |
+| `BATCH_SIZE_EDGES` / `BATCH_SIZE_BASES` | — | Bisect lookup tables backing the workload-scale heuristic.        |
 
 ---
 
