@@ -751,15 +751,20 @@ def _compute_optimal_batch_size(
     -----
     Heuristic table (inclusive right edges, see README):
 
-    - ``N <= 10K`` -> 128 (minimise dispatch overhead)
-    - ``10K < N <= 100K`` -> 256 (balance speed/memory)
-    - ``100K < N <= 500K`` -> 512 (maximise throughput)
-    - ``N > 500K`` -> 1000 (optimise memory)
+    - ``N <= 10K`` -> 256 (load-balancing cap usually binds first)
+    - ``10K < N <= 100K`` -> 512 (compromise between 4- and 16-worker optima)
+    - ``100K < N <= 500K`` -> 1000 (measured optimum on 16 workers)
+    - ``N > 500K`` -> 1000 (measured optimum on 16 workers)
+
+    The bootstrap pipeline is largely bound by the parent process (seed
+    spawning, task dispatch, result collection), so the batch size mainly
+    trades dispatch overhead against load balancing; the effect is a few
+    percent of wall time, and the optimum grows with the worker count.
 
     Memory-tier dampening:
 
     - ``< MEMORY_LOW_THRESHOLD`` GB -> cap at ``LOW_MEM_BATCH_CAP`` (64)
-    - ``< MEMORY_MODERATE_THRESHOLD`` GB -> cap at ``BATCH_SIZE_MEDIUM`` (256)
+    - ``< MEMORY_MODERATE_THRESHOLD`` GB -> cap at ``BATCH_SIZE_MEDIUM`` (512)
 
     Sample-complexity dampening:
 

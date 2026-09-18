@@ -72,7 +72,7 @@ def big_mem() -> float:
 @pytest.mark.parametrize(
     ("n_samples", "expected_base"),
     [
-        (1_000, BATCH_SIZE_SMALL),
+        (5_000, BATCH_SIZE_SMALL),  # N // 4 = 1250 > base, so base wins
         (10_000, BATCH_SIZE_SMALL),  # inclusive right edge
         (10_001, BATCH_SIZE_MEDIUM),
         (50_000, BATCH_SIZE_MEDIUM),
@@ -91,8 +91,8 @@ def test_heuristic_buckets(n_samples: int, expected_base: int, big_mem: float) -
         n_jobs=1,  # n_workers=1 makes load-balancing cap == N
         available_memory_gb=big_mem,
     )
-    # With 1 worker, max_batch = N // (1 * 4) = N // 4 >> base.
-    # With infinite memory, mem_cap is huge. So the base heuristic wins.
+    # With 1 worker, max_batch = N // (1 * 4) = N // 4 > base for N >= 5K.
+    # With infinite memory, no RAM tier binds. So the base heuristic wins.
     assert batch == expected_base
 
 
@@ -123,6 +123,38 @@ def test_load_balancing_invariant(
     )
     total_batches = math.ceil(n_samples / batch)
     assert total_batches >= n_workers * MIN_BATCHES_PER_WORKER
+
+
+def test_bases_are_monotonic_and_match_edges() -> None:
+    """Lookup tables must be sorted and have len(bases) == len(edges) + 1."""
+    from fastbootstrap.constants import BATCH_SIZE_BASES, BATCH_SIZE_EDGES
+
+    assert list(BATCH_SIZE_EDGES) == sorted(BATCH_SIZE_EDGES)
+    assert list(BATCH_SIZE_BASES) == sorted(BATCH_SIZE_BASES)
+    assert len(BATCH_SIZE_BASES) == len(BATCH_SIZE_EDGES) + 1
+
+
+@pytest.mark.parametrize(
+    ("n_samples", "n_jobs", "expected"),
+    [
+        # 16 workers: cap = N // 64 binds at 10K (156), bases win above.
+        (10_000, 16, 156),
+        (100_000, 16, BATCH_SIZE_MEDIUM),
+        (500_000, 16, BATCH_SIZE_LARGE),
+        (1_000_000, 16, BATCH_SIZE_MASSIVE),
+        # 4 workers: cap = N // 16 never binds at these scales.
+        (10_000, 4, BATCH_SIZE_SMALL),
+        (100_000, 4, BATCH_SIZE_MEDIUM),
+    ],
+)
+def test_reference_picks(
+    n_samples: int, n_jobs: int, expected: int, big_mem: float
+) -> None:
+    """Pin the picks documented in the README benchmark tables."""
+    batch = _compute_optimal_batch_size(
+        n_samples, sample_size=2_000, n_jobs=n_jobs, available_memory_gb=big_mem
+    )
+    assert batch == expected
 
 
 def test_previous_inversion_fixed(big_mem: float) -> None:

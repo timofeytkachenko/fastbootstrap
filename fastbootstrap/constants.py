@@ -59,10 +59,13 @@ BATCH_SIZE_THRESHOLD_SMALL: Final[int] = 10_000
 BATCH_SIZE_THRESHOLD_MEDIUM: Final[int] = 100_000
 BATCH_SIZE_THRESHOLD_LARGE: Final[int] = 500_000
 
-# Smart batch size values
-BATCH_SIZE_SMALL: Final[int] = 128  # For N <= 10K samples
-BATCH_SIZE_MEDIUM: Final[int] = 256  # For 10K < N <= 100K samples
-BATCH_SIZE_LARGE: Final[int] = 512  # For 100K < N <= 500K samples
+# Smart batch size values (retuned from a batch-size sweep on a 16-core M4 Max,
+# see README "Batch-Size Sweep"; the pipeline is largely parent-bound, so larger
+# batches amortise dispatch overhead while the load-balancing cap keeps small N
+# safe on machines with many workers).
+BATCH_SIZE_SMALL: Final[int] = 256  # For N <= 10K samples
+BATCH_SIZE_MEDIUM: Final[int] = 512  # For 10K < N <= 100K samples
+BATCH_SIZE_LARGE: Final[int] = 1000  # For 100K < N <= 500K samples
 BATCH_SIZE_MASSIVE: Final[int] = 1000  # For N > 500K samples
 
 # Memory constraint thresholds (GB)
