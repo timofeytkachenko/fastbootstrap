@@ -21,7 +21,7 @@
 
 - **Multiple Bootstrap Methods**: Percentile, BCa, Basic, Studentized, Spotify-style, and Poisson bootstrap
 - **High Performance**: Parallel processing with joblib, optimized NumPy operations
-- **Smart Batch Sizing**: Intelligent auto-optimization for 5-30% performance gains
+- **Smart Batch Sizing**: Intelligent auto-optimization, up to 30% faster than naive batch sizes with zero tuning
 - **Comprehensive Statistics**: Confidence intervals, p-values, effect sizes, power analysis, quantile-quantile analysis
 - **Flexible API**: Unified interface with method auto-selection
 - **Rich Visualizations**: Built-in plotting with matplotlib and plotly
@@ -254,8 +254,8 @@ print(f"95% CI: [{result['confidence_interval'][0]:.3f}, {result['confidence_int
 ```
 
 **Optimization Benefits:**
-- Memory usage reduced by 40-50%
-- Execution speed improved by 15-30%
+- ~120 K bootstrap samples/s at 1M iterations on a 16-core M4 Max (see [Performance](#-performance-benchmarks))
+- Peak memory is independent of `batch_size`; smart mode warns before an OOM-prone `n_jobs × sample_size` combination
 - Suitable for production workloads with massive resampling needs
 
 ### Custom Statistics
@@ -318,32 +318,32 @@ result = fb.bootstrap(control, treatment, spotify_style=True, q=0.5)
 
 ## ⚡ Performance Benchmarks
 
-Benchmarks on Apple Silicon M4 Max (16 physical cores, 48 GB RAM), Python 3.12, `fastbootstrap` 1.8.4.
+Benchmarks on Apple Silicon M4 Max (16 cores, 48 GB RAM), Python 3.12.11, NumPy 2.4.4, joblib 1.5.3, `fastbootstrap` 1.8.5.
 
-**Methodology.** Each cell reports `min` (and where shown, `median`) of **3 warm runs after a 1-iteration warmup**. The first joblib call pays a one-shot ~1.1 s `loky` worker-spawn penalty that is excluded by the warmup. Reproduce by running the snippets at the end of this section.
+**Methodology.** Each cell reports `min` of **3 warm runs after a 1-iteration warmup**. The first joblib call pays a one-shot ~1 s `loky` worker-spawn penalty that is excluded by the warmup. Run-to-run noise is roughly ±3–5%, so differences below that are not significant. Reproduce by running the snippets at the end of this section.
 
 ### Standard Configuration (n=1,000, bootstrap=10,000)
 
-All methods tested with 1,000 sample size and 10,000 bootstrap iterations for consistent comparison.
+All methods tested with 1,000 sample size and 10,000 bootstrap iterations, library defaults (`n_jobs=-1`, `batch_size=None`).
 
 | Method                   | Time (s) | Throughput (samples/s) | Performance Tier |
 |--------------------------|----------|------------------------|------------------|
-| **Spotify One Sample**   | **0.0003** | **33,000,000+**      | ⚡ Ultra-fast    |
-| **Spotify Two Sample**   | **0.0007** | **14,200,000+**      | ⚡ Ultra-fast    |
-| One Sample Basic         | 0.140    | 71,400                 | 🚀 Fast          |
-| One Sample Percentile    | 0.141    | 70,900                 | 🚀 Fast          |
-| Two Sample Standard      | 0.144    | 69,400                 | 🚀 Fast          |
-| One Sample BCa           | 0.144    | 69,400                 | 🚀 Fast          |
-| One Sample Studentized   | 0.147    | 68,000                 | 🚀 Fast          |
-| Poisson Bootstrap        | 0.206    | 48,500                 | ✓ Standard       |
+| **Spotify One Sample**   | **0.0003** | **31,800,000**       | ⚡ Ultra-fast    |
+| **Spotify Two Sample**   | **0.0006** | **16,100,000**       | ⚡ Ultra-fast    |
+| One Sample Basic         | 0.138    | 72,600                 | 🚀 Fast          |
+| Two Sample Standard      | 0.139    | 71,800                 | 🚀 Fast          |
+| One Sample Percentile    | 0.141    | 70,800                 | 🚀 Fast          |
+| One Sample BCa           | 0.149    | 67,200                 | 🚀 Fast          |
+| One Sample Studentized   | 0.155    | 64,400                 | 🚀 Fast          |
+| Poisson Bootstrap        | 0.208    | 48,000                 | ✓ Standard       |
 
 ### Performance Analysis
 
 **Method Selection Guide:**
-- **Spotify methods**: Ideal for quantile-based analysis (medians, percentiles) - **300x faster** than standard methods
-- **Standard bootstrap**: Best for general statistics (means, confidence intervals) - processes **~65K samples/sec**
-- **BCa bootstrap**: Advanced method with bias correction - minimal overhead vs. percentile method
-- **Poisson bootstrap**: Specialized for aggregated comparisons - moderate performance
+- **Spotify methods**: Ideal for quantile-based analysis (medians, percentiles) - **200–450x faster** than standard methods
+- **Standard bootstrap**: Best for general statistics (means, confidence intervals) - processes **~70K samples/sec**
+- **BCa bootstrap**: Advanced method with bias correction - ~5% overhead vs. percentile method (jackknife acceleration term)
+- **Poisson bootstrap**: Specialized for aggregated comparisons - moderate performance (single-process NumPy loop)
 
 ### Key Performance Insights
 
@@ -360,10 +360,12 @@ The library supports **intelligent batch processing** for optimal performance ac
 
 #### Understanding `batch_size`
 
-The `batch_size` parameter controls how bootstrap samples are distributed across parallel workers:
-- **Small batches**: Lower memory per worker, higher communication overhead
-- **Large batches**: Higher memory efficiency, reduced parallelization overhead
-- **Optimal batches**: Balance throughput and memory based on dataset scale
+The `batch_size` parameter controls how many bootstrap iterations joblib dispatches to a worker per task:
+- **Small batches**: Fine-grained load balancing, higher dispatch/IPC overhead
+- **Large batches**: Amortised dispatch overhead, risk of idle workers on the tail of the workload
+- **Optimal batches**: Balance dispatch overhead against load balancing for the given `N` and worker count
+
+Peak memory is *not* a function of `batch_size` (see *Peak-memory check* below).
 
 ```python
 import fastbootstrap as fb
@@ -417,15 +419,17 @@ The base value above is then narrowed by these guard rails:
 - **Moderate-RAM tier** (`4 – 8 GB`): cap at `BATCH_SIZE_MEDIUM = 256`.
 - **Wide samples** (`sample_size > LARGE_SAMPLE_THRESHOLD = 100K`):
   divide base by `SAMPLE_COMPLEXITY_DIVISOR = 2`, with `MIN_BATCH_FLOOR = 16` as the floor.
-- **Load-balancing cap** *(fixed in 1.8.4)*:
-  `max_batch = ⌊N / (n_workers · MIN_BATCHES_PER_WORKER)⌋` —
-  guarantees enough chunks to keep all workers busy. The previous release had
-  this clamp inverted, which collapsed the heuristic on large workloads
-  (e.g. on 1M samples / 8 workers it returned ~31 250 instead of ~1 000).
+- **Load-balancing cap**:
+  `max_batch = max(MIN_BATCH_FLOOR, ⌊N / (n_workers · MIN_BATCHES_PER_WORKER)⌋)` —
+  guarantees enough chunks to keep all workers busy on the tail of the workload.
 
 Final value: `clip(base, MIN_BATCH_FLOOR, max_batch)`.
 
-**Peak-memory check** *(replaces the former per-batch memory cap)*: peak
+The base lookup is a `bisect_left` over the public `BATCH_SIZE_EDGES` /
+`BATCH_SIZE_BASES` tables (inclusive right edges), so the whole computation
+is `O(1)` and free of branching on `N`.
+
+**Peak-memory check** *(1.8.5; replaces the per-batch memory cap of earlier releases)*: peak
 resampling RAM is *batch-invariant* — each joblib worker executes its batch
 sequentially and holds roughly one resample at a time, so shrinking the batch
 cannot reduce the peak. Smart mode estimates the peak as
@@ -440,67 +444,68 @@ matches the worker count `Parallel` actually spawns (`-1` → all logical cores,
 `-2` → all but one, `≥ 1` → explicit count, oversubscription allowed).
 
 **Performance Benefits (measured on the same M4 Max):**
-- **20-30% faster** than `batch_size=32` for small workloads (`N ≤ 10K`).
-- **3-5% faster** than `batch_size=128` for medium workloads (`10K < N ≤ 100K`).
-- **1-3% faster** than `batch_size=None` for large workloads (`N ≥ 500K`), while picking the same per-call batch the manual optimum would.
-- **5-10× lower resident-memory delta** vs `batch_size=None` on 500K – 1M workloads (see tables below).
+- **25-30% faster** than `batch_size=32` for small workloads (`N ≤ 10K`).
+- **3-7% faster** than `batch_size=128` for medium workloads (`10K < N ≤ 100K`).
+- **On par with `batch_size=None`** at `N = 500K` and **0.5-2% faster** at `N = 1M`; picks the same per-call batch a manual sweep would land on (or within one bucket of it).
+- **No memory trade-off** — peak resident memory is batch-invariant (see tables below), so smart mode never buys speed with RAM or vice versa; it warns instead when the worker-side peak would exceed the RAM budget.
 - **Zero configuration** — adapts to RAM, CPU and resample width automatically.
 
 #### Benchmark Results
 
-All numbers below are `min` of 3 warm runs on Apple Silicon M4 Max, Python 3.12, `n=1000` sample size, `n_jobs=-1` (16 physical cores). `Δ%` is relative to the leftmost column. `peak ΔRSS` is the maximum RSS delta observed by `psutil.Process().memory_info().rss` during the run.
+All numbers below are `min` of 3 warm runs on Apple Silicon M4 Max, Python 3.12, `n=1000` sample size, `n_jobs=-1` (16 cores). `Δ%` is relative to the leftmost column / first row. `peak ΔRSS` is the maximum RSS delta of the parent process observed by `psutil.Process().memory_info().rss` during one warm run, with **each configuration executed in a fresh interpreter** so the value does not depend on run order.
 
 **Small Dataset: 10K bootstrap samples**
 
 | Method      | `batch=32` | `batch=128`           | `batch=None`          | `batch='smart'` (picks 128) | Optimal  |
 |-------------|------------|-----------------------|-----------------------|-----------------------------|----------|
-| One-Sample  | 0.162s     | 0.121s (−25.3%)       | 0.145s (−10.5%)       | 0.121s (−25.3%)             | **128**  |
-| Two-Sample  | 0.166s     | 0.121s (−27.1%)       | 0.136s (−18.1%)       | 0.118s (−28.9%)             | **128**  |
+| One-Sample  | 0.164s     | 0.112s (−31.7%)       | 0.139s (−15.2%)       | 0.118s (−28.0%)             | **128**  |
+| Two-Sample  | 0.163s     | 0.121s (−25.8%)       | 0.140s (−14.1%)       | 0.121s (−25.8%)             | **128**  |
 
 **Medium Dataset: 100K bootstrap samples**
 
 | Method      | `batch=128` | `batch=256`           | `batch=None`          | `batch='smart'` (picks 256) | Optimal  |
 |-------------|-------------|-----------------------|-----------------------|-----------------------------|----------|
-| One-Sample  | 0.972s      | 0.934s (−3.9%)        | 0.928s (−4.5%)        | 0.942s (−3.1%)              | **256**  |
-| Two-Sample  | 0.981s      | 0.943s (−3.9%)        | 0.930s (−5.2%)        | 0.936s (−4.6%)              | **256**  |
+| One-Sample  | 0.956s      | 0.929s (−2.8%)        | 0.927s (−3.0%)        | 0.926s (−3.1%)              | **256**  |
+| Two-Sample  | 0.989s      | 0.935s (−5.5%)        | 0.923s (−6.7%)        | 0.921s (−6.9%)              | **256**  |
 
 **Large Dataset: 500K bootstrap samples (smart picks 512)**
 
 | Method      | Config         | Time (s) | Δ%   | peak ΔRSS |
 |-------------|----------------|----------|------|-----------|
-| One-Sample  | `batch=512`    | 4.389    | —    | ~49 MB    |
-| One-Sample  | `batch=1000`   | 4.327    | −1.4 | ~57 MB    |
-| One-Sample  | `batch=None`   | 4.400    | +0.3 | ~37 MB    |
-| One-Sample  | `'smart'`      | 4.363    | −0.6 | **~2 MB** |
-| Two-Sample  | `batch=512`    | 4.362    | —    | ~30 MB    |
-| Two-Sample  | `batch=1000`   | 4.305    | −1.3 | ~23 MB    |
-| Two-Sample  | `batch=None`   | 4.403    | +0.9 | ~43 MB    |
-| Two-Sample  | `'smart'`      | 4.409    | +1.1 | ~22 MB    |
+| One-Sample  | `batch=512`    | 4.409    | —    | ~160 MB   |
+| One-Sample  | `batch=1000`   | 4.285    | −2.8 | ~160 MB   |
+| One-Sample  | `batch=None`   | 4.382    | −0.6 | ~161 MB   |
+| One-Sample  | `'smart'`      | 4.368    | −0.9 | ~160 MB   |
+| Two-Sample  | `batch=512`    | 4.335    | —    | ~162 MB   |
+| Two-Sample  | `batch=1000`   | 4.241    | −2.2 | ~160 MB   |
+| Two-Sample  | `batch=None`   | 4.334    | 0.0  | ~159 MB   |
+| Two-Sample  | `'smart'`      | 4.356    | +0.5 | ~163 MB   |
 
-Throughput ≈ 113–116 K samples/s for `'smart'` and the manual optimum, ~2× the small-dataset rate thanks to amortised dispatch overhead.
+Throughput ≈ 114–118 K samples/s for `'smart'` and the manual optimum, ~1.3× the small-dataset rate thanks to amortised dispatch overhead. At this scale `batch=1000` is ~2–3% faster than the 512 that smart picks — inside the noise band, but consistently so.
 
 **Massive Dataset: 1M bootstrap samples (smart picks 1000)**
 
 | Method      | Config         | Time (s) | Δ%   | peak ΔRSS  |
 |-------------|----------------|----------|------|------------|
-| One-Sample  | `batch=512`    | 8.850    | —    | ~73 MB     |
-| One-Sample  | `batch=1000`   | 8.626    | −2.5 | ~81 MB     |
-| One-Sample  | `batch=None`   | 8.710    | −1.6 | ~82 MB     |
-| One-Sample  | `'smart'`      | 8.682    | −1.9 | **~0 MB**  |
-| Two-Sample  | `batch=512`    | 8.689    | —    | ~66 MB     |
-| Two-Sample  | `batch=1000`   | 8.404    | −3.3 | ~24 MB     |
-| Two-Sample  | `batch=None`   | 8.517    | −2.0 | ~103 MB    |
-| Two-Sample  | `'smart'`      | 8.416    | −3.1 | **~13 MB** |
+| One-Sample  | `batch=512`    | 8.721    | —    | ~347 MB    |
+| One-Sample  | `batch=1000`   | 8.566    | −1.8 | ~337 MB    |
+| One-Sample  | `batch=None`   | 8.577    | −1.7 | ~342 MB    |
+| One-Sample  | `'smart'`      | 8.530    | −2.2 | ~337 MB    |
+| Two-Sample  | `batch=512`    | 8.728    | —    | ~349 MB    |
+| Two-Sample  | `batch=1000`   | 8.527    | −2.3 | ~335 MB    |
+| Two-Sample  | `batch=None`   | 8.624    | −1.2 | ~340 MB    |
+| Two-Sample  | `'smart'`      | 8.435    | −3.4 | ~335 MB    |
 
-Throughput ≈ 119 K samples/s for `'smart'`; resident-memory delta is **5–10× lower** than `batch=None`, confirming the memory-aware cap is paying off.
+Throughput ≈ 117–119 K samples/s for `'smart'`, the fastest configuration at this scale.
 
 **Key Findings:**
-- The heuristic table (`128 / 256 / 512 / 1000`) is empirically optimal on this hardware across all four scales.
-- **Smart mode matches the manual optimum within 0.6–1.9%** on every scale and **uses 5–10× less resident memory** than `batch=None` on 500K–1M workloads.
-- **Auto mode** (`batch_size=None`) is competitive on small/medium but **leaks ~80–100 MB of RSS** at 1M samples because joblib's adaptive batching cannot see RAM/sample-width constraints.
-- Scaling is near-linear: 10K → 0.14 s, 100K → 0.94 s, 500K → 4.4 s, 1M → 8.4 s.
+- The heuristic table (`128 / 256 / 512 / 1000`) lands on or within one bucket of the manual optimum on this hardware at every scale: exact at 10K, 100K and 1M; at 500K the next bucket (`1000`) is ~2–3% faster.
+- **Smart mode is the fastest configuration at 100K and 1M** and within 2–5% of the best manual value at 10K and 500K (at 10K it picks the same `128` as the optimum, so the gap is run-to-run noise).
+- **Peak resident memory does not depend on `batch_size`**: ~160 MB at 500K and ~340 MB at 1M for *every* configuration (≈ 330–360 bytes per bootstrap sample, dominated by the `SeedSequence.spawn` list and the result list, not by the batch). This is exactly why 1.8.5 dropped the per-batch memory cap in favour of a `ResourceWarning`.
+- **Auto mode** (`batch_size=None`) is competitive for `N ≥ 100K` (within ~2% of smart) but is 13–15% slower than smart at 10K, presumably because joblib's adaptive batching starts from a tiny batch and has too few tasks to converge.
+- Scaling is near-linear: 10K → 0.12 s, 100K → 0.93 s, 500K → 4.4 s, 1M → 8.5 s.
 
-> **Note (1.8.4):** The previous release had `min_batch`/`max_batch` swapped, so the smart heuristic collapsed to `N / (4 · n_workers)` on large workloads (e.g. it returned 31 250 instead of 1 000 on 1M samples / 8 cores). The fix restores the documented behaviour and is the source of the speed and memory wins reported above.
+> **Note (1.8.5):** The former per-batch memory cap (`mem_cap = ⌊MEM_FRACTION · free_bytes / (sample_size · dtype_bytes · n_workers)⌋`) was removed. Peak resampling memory is batch-invariant, so the cap only fragmented large workloads into tiny batches without lowering the RAM peak. Smart mode now estimates the worker-side peak (`n_workers · sample_size · (dtype_bytes + INDEX_BYTES)`) and emits a `ResourceWarning` when it exceeds `MEM_FRACTION` of available RAM. Worker resolution moved to `joblib.effective_n_jobs` so the estimate matches what `Parallel` actually spawns. Batch picks for `sample_size ≤ 100K` are unchanged from 1.8.4, which is why the timings above are statistically indistinguishable from the previous release.
 
 **Reproduce locally:**
 
@@ -539,17 +544,22 @@ for N in (10_000, 100_000, 500_000, 1_000_000):
 
 #### Batch Size Selection Guide
 
-| Bootstrap Samples (`N`) | Recommended Mode | Smart Picks (typical) | Expected Benefit                  | Use Case                     |
-|-------------------------|------------------|-----------------------|-----------------------------------|------------------------------|
-| `N ≤ 10K`               | `'smart'`        | `128`                 | 5-10% faster                      | Quick analyses, A/B tests    |
-| `10K < N ≤ 100K`        | `'smart'`        | `256`                 | 2-8% faster, ~10% less memory     | Medium-scale studies         |
-| `100K < N ≤ 500K`       | `'smart'`        | `512`                 | 5-15% faster, 20-30% less memory  | Large experiments            |
-| `500K < N ≤ 1M`         | `'smart'`        | `1000`                | 10-20% faster, 30-40% less memory | Production analytics         |
-| `N > 1M`                | `'smart'`        | `1000` (mem-aware)    | 15-30% faster, 40-50% less memory | Research-scale data          |
+| Bootstrap Samples (`N`) | Recommended Mode | Smart Picks (typical) | Measured Benefit (M4 Max, n=1000)             | Use Case                     |
+|-------------------------|------------------|-----------------------|-----------------------------------------------|------------------------------|
+| `N ≤ 10K`               | `'smart'`        | `128`                 | 13-15% faster than `None`, 25-30% vs `32`     | Quick analyses, A/B tests    |
+| `10K < N ≤ 100K`        | `'smart'`        | `256`                 | 3-7% faster than `128`, on par with `None`    | Medium-scale studies         |
+| `100K < N ≤ 500K`       | `'smart'`        | `512`                 | On par with `None`/`512`; `1000` is ~2% faster | Large experiments           |
+| `500K < N ≤ 1M`         | `'smart'`        | `1000`                | 0.5-2% faster than `None`, 2-3% vs `512`      | Production analytics         |
+| `N > 1M`                | `'smart'`        | `1000`                | Same pick as 1M (not benchmarked separately)  | Research-scale data          |
+
+Peak resident memory is the same for every mode at a given `N` (see *Benchmark
+Results*), so the choice of `batch_size` is a pure speed/dispatch-overhead knob.
 
 Picks above assume default `n_jobs=-1`, ≥ 8 GB free RAM and `sample_size ≤ 100K`.
 On wide samples or tight RAM the smart algorithm will lower the batch automatically
-(see *Memory-aware cap* and *Wide samples* above).
+(see *Low-RAM / Moderate-RAM tier* and *Wide samples* above); when the
+batch-invariant peak estimate exceeds the RAM budget it emits a `ResourceWarning`
+instead (see *Peak-memory check*).
 
 **Recommendation:** Use `batch_size='smart'` as the default for all production workloads. Smart mode eliminates manual tuning while delivering optimal performance across varying scales and system configurations.
 
@@ -622,25 +632,26 @@ All numbers below come from the warm-run M4 Max benchmarks above.
 
 **Smart Mode Benefits:**
 - **Zero configuration**: automatically picks 128 / 256 / 512 / 1000 depending on `N`.
-- **Matches the manual optimum** within 0.6 – 1.9% on every measured scale.
-- **5–10× lower resident-memory delta** vs `batch_size=None` for `N ≥ 500K`.
-- **System-aware**: adapts to free RAM, sample width, and physical core count.
+- **Fastest configuration** at `N = 100K` and `N = 1M`; within 2–5% of the best manual value at 10K and 500K.
+- **No memory penalty**: peak RSS is identical across all `batch_size` modes at a given `N`.
+- **System-aware**: adapts to free RAM, sample width, and the worker count joblib actually spawns; warns before an OOM-prone configuration instead of silently degrading throughput.
 
 **Speed Improvements (warm, M4 Max, n=1000):**
-- **−25 to −29%** vs `batch_size=32` at `N = 10K`.
-- **−3 to −5%** vs `batch_size=128` at `N = 100K`.
-- **−1 to −3%** vs `batch_size=None` at `N = 500K – 1M`.
+- **−26 to −28%** vs `batch_size=32` at `N = 10K`.
+- **−3 to −7%** vs `batch_size=128` at `N = 100K`.
+- **−2 to −3%** vs `batch_size=512` at `N = 1M`; **−0.5 to −2%** vs `batch_size=None` at `N = 1M`.
 
-**Memory Efficiency (peak `psutil` RSS delta during the run):**
-- `N = 500K`: smart ≈ 2 – 22 MB vs `batch_size=None` 37 – 43 MB.
-- `N = 1M`: smart ≈ 0 – 13 MB vs `batch_size=None` 82 – 103 MB.
+**Memory (peak parent-process `psutil` RSS delta, fresh interpreter per config):**
+- `N = 500K`: ~160 MB for `512`, `1000`, `None` and `'smart'` alike.
+- `N = 1M`: ~335–350 MB for all four configurations.
+- The parent footprint is `O(N)` in the number of bootstrap samples (seed list + result list), not in `batch_size`; the worker-side peak scales with `n_workers · sample_size` (see *Peak-memory check*). Neither is reduced by a smaller batch.
 
 **Technical Optimizations:**
-- **Smart Batch Sizing**: workload-aware heuristics with memory-aware and load-balancing caps.
+- **Smart Batch Sizing**: workload-aware heuristics with RAM-tier dampening and a load-balancing cap.
 - **Lazy RNG Generation**: on-demand `np.random.Generator` creation in workers — no upfront RNG list.
 - **Process-Based Parallelism**: joblib `prefer='processes'` sidesteps the Python GIL on CPU-bound kernels.
-- **Resource Monitoring**: `psutil.virtual_memory()` is consulted once per call to size the memory-aware cap.
-- **Adaptive Strategy**: bucket lookup + RAM tier + sample-complexity halving + joblib-compatible `n_jobs`.
+- **Resource Monitoring**: `psutil.virtual_memory()` is consulted once per call for the RAM tier and the peak-memory `ResourceWarning`.
+- **Adaptive Strategy**: `bisect` bucket lookup + RAM tier + sample-complexity halving + `joblib.effective_n_jobs` worker resolution.
 
 ## 🔧 API Reference
 
@@ -670,7 +681,7 @@ Fast two-sample quantile comparison.
 | `method`                      | str         | 'percentile'| Bootstrap method.                                                                            |
 | `statistic`                   | callable    | `np.mean`   | Statistical function.                                                                        |
 | `seed`                        | int         | 42          | Random seed.                                                                                 |
-| `n_jobs`                      | int         | -1          | joblib convention: `-1` = all physical cores, `-k` = all but `k-1`, `≥ 1` = explicit count. `0` is invalid. |
+| `n_jobs`                      | int         | -1          | joblib convention (`joblib.effective_n_jobs`): `-1` = all logical cores, `-k` = all but `k-1`, `≥ 1` = explicit count. `0` is invalid. |
 | `batch_size`                  | int or str  | None        | `None` (joblib auto), `'smart'` (recommended, see Smart Batch Sizing), or explicit `int`.    |
 | `plot`                        | bool        | False       | Generate plots.                                                                              |
 
