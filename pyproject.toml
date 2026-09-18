@@ -64,5 +64,16 @@ exclude = [
 requires = ['hatchling']
 build-backend = 'hatchling.build'
 
-[tool.hatch.build]
-include = ['img/*']
+# NOTE: defining `include` under [tool.hatch.build] would disable hatchling's
+# package auto-detection for every target; configure each target explicitly.
+[tool.hatch.build.targets.wheel]
+packages = ["fastbootstrap"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "fastbootstrap",
+    "tests",
+    "img",
+    "README.md",
+    "pyproject.toml",
+]
