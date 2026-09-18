@@ -318,7 +318,7 @@ result = fb.bootstrap(control, treatment, spotify_style=True, q=0.5)
 
 ## ⚡ Performance Benchmarks
 
-Benchmarks on Apple Silicon M4 Max (16 cores, 48 GB RAM), Python 3.12.11, NumPy 2.4.4, joblib 1.5.3, `fastbootstrap` 1.8.6.
+Benchmarks on Apple Silicon M4 Max (16 cores, 48 GB RAM), Python 3.12.11, NumPy 2.4.4, joblib 1.5.3, `fastbootstrap` 1.8.6. The batch-size heuristic is unchanged in 1.8.7, so these numbers still apply.
 
 **Methodology.** Each cell reports `min` of **3 warm runs after a 1-iteration warmup**. The first joblib call pays a one-shot ~1 s `loky` worker-spawn penalty that is excluded by the warmup. Run-to-run noise is roughly ±3–5%, so differences below that are not significant. Reproduce by running the snippets at the end of this section.
 
@@ -417,6 +417,8 @@ The base value above is then narrowed by these guard rails:
 
 - **Low-RAM tier** (`< MEMORY_LOW_THRESHOLD = 4 GB`): cap at `LOW_MEM_BATCH_CAP = 64`.
 - **Moderate-RAM tier** (`4 – 8 GB`): cap at `BATCH_SIZE_MEDIUM = 512`.
+  Both tiers use free RAM as a proxy for "small host" and pick finer dispatch
+  units there; they do **not** lower peak memory (see *Peak-memory check*).
 - **Wide samples** (`sample_size > LARGE_SAMPLE_THRESHOLD = 100K`):
   divide base by `SAMPLE_COMPLEXITY_DIVISOR = 2`, with `MIN_BATCH_FLOOR = 16` as the floor.
 - **Load-balancing cap**:
@@ -533,6 +535,8 @@ Throughput ≈ 119 K samples/s for `'smart'`, the fastest configuration at this 
 > **Note (1.8.5):** The former per-batch memory cap (`mem_cap = ⌊MEM_FRACTION · free_bytes / (sample_size · dtype_bytes · n_workers)⌋`) was removed. Peak resampling memory is batch-invariant, so the cap only fragmented large workloads into tiny batches without lowering the RAM peak. Smart mode now estimates the worker-side peak (`n_workers · sample_size · (dtype_bytes + INDEX_BYTES)`) and emits a `ResourceWarning` when it exceeds `MEM_FRACTION` of available RAM. Worker resolution moved to `joblib.effective_n_jobs` so the estimate matches what `Parallel` actually spawns.
 
 > **Note (1.8.6):** The base table was retuned from `128 / 256 / 512 / 1000` to `256 / 512 / 1000 / 1000` following the *Batch-Size Sweep* above. Picks change for `N ≤ 500K` (e.g. 10K on 16 workers: `128 → 156`, 100K: `256 → 512`, 500K: `512 → 1000`); `N > 500K` is unchanged. The guard rails, constants' names and the public API are unchanged; `BATCH_SIZE_MEDIUM` (the moderate-RAM cap) is now 512.
+
+> **Note (1.8.7):** Argument validation only — no change to the batch-size heuristic or to any result. `batch_size` and `n_jobs` are now checked up front and rejected with a `ValidationError` instead of surfacing as a `NumericalError` from joblib; NumPy integer scalars are accepted for both, and `n_jobs=None` (defer to an enclosing `joblib.parallel_backend`) is explicitly supported and typed as `Optional[int]` on the public API. The `ResourceWarning` from smart mode is now attributed to the calling line in user code rather than to a frame inside the package.
 
 **Reproduce locally:**
 
@@ -710,8 +714,8 @@ Fast two-sample quantile comparison.
 | `method`                      | str         | 'percentile'| Bootstrap method.                                                                            |
 | `statistic`                   | callable    | `np.mean`   | Statistical function.                                                                        |
 | `seed`                        | int         | 42          | Random seed.                                                                                 |
-| `n_jobs`                      | int         | -1          | joblib convention (`joblib.effective_n_jobs`): `-1` = all logical cores, `-k` = all but `k-1`, `≥ 1` = explicit count. `0` is invalid. |
-| `batch_size`                  | int or str  | None        | `None` (joblib auto), `'smart'` (recommended, see Smart Batch Sizing), or explicit `int`.    |
+| `n_jobs`                      | int or None | -1          | joblib convention (`joblib.effective_n_jobs`): `-1` = all logical cores, `-k` = all but `k-1`, `≥ 1` = explicit count, `None` = defer to joblib (enclosing `parallel_backend` context, else 1). `0` is invalid. |
+| `batch_size`                  | int or str  | None        | `None`/`'auto'` (joblib auto), `'smart'` (recommended, see Smart Batch Sizing), or explicit `int ≥ 1`. Anything else raises `ValidationError`. |
 | `plot`                        | bool        | False       | Generate plots.                                                                              |
 
 ### Bootstrap Methods

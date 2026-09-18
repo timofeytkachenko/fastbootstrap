@@ -48,6 +48,9 @@ DEFAULT_BOOTSTRAP_METHOD: Final[str] = "percentile"
 # Numerical constants
 EPSILON: Final[float] = 1e-10
 MIN_SAMPLE_SIZE: Final[int] = 2
+# Advisory only: NOT enforced anywhere (workloads of 1M+ samples are supported
+# and benchmarked in the README). Kept for backward compatibility of the
+# public API; do not use it to reject inputs.
 MAX_BOOTSTRAP_SAMPLES: Final[int] = 100000
 
 # Performance constants
@@ -67,6 +70,9 @@ BATCH_SIZE_SMALL: Final[int] = 256  # For N <= 10K samples
 BATCH_SIZE_MEDIUM: Final[int] = 512  # For 10K < N <= 100K samples
 BATCH_SIZE_LARGE: Final[int] = 1000  # For 100K < N <= 500K samples
 BATCH_SIZE_MASSIVE: Final[int] = 1000  # For N > 500K samples
+# LARGE and MASSIVE currently coincide on purpose: the 16-worker sweep found
+# 1000 optimal for every N > 100K. The 500K edge is kept so the two buckets can
+# diverge again later without an API change. Retune both, or neither.
 
 # Memory constraint thresholds (GB)
 MEMORY_LOW_THRESHOLD: Final[float] = 4.0
@@ -113,7 +119,7 @@ JACKKNIFE_PARALLEL_THRESHOLD: Final[int] = (
 # Error messages
 ERROR_MESSAGES: Final[dict[str, str]] = {
     "invalid_confidence_level": "Confidence level must be between 0 and 1",
-    "invalid_bootstrap_samples": f"Number of bootstrap samples must be positive and <= {MAX_BOOTSTRAP_SAMPLES}",
+    "invalid_bootstrap_samples": "Number of bootstrap samples must be a positive integer",
     "invalid_sample_size": f"Sample size must be >= {MIN_SAMPLE_SIZE}",
     "invalid_method": "Invalid method. Choose from: {methods}",
     "empty_array": "Input array cannot be empty",

@@ -8,16 +8,23 @@ Covers:
 - Load-balancing invariant (>= MIN_BATCHES_PER_WORKER chunks per worker).
 - Input validation via `ValidationError`.
 - joblib `effective_n_jobs` alignment in `_resolve_n_workers`.
+- `bootstrap_resampling` rejects bad `batch_size` / `n_jobs` with
+  `ValidationError` (not a re-wrapped joblib `ValueError`).
+- `ResourceWarning` is attributed to the caller's file, not to `core.py`.
 """
 
 from __future__ import annotations
 
 import math
+import os
+import types
 import warnings
 
+import numpy as np
 import pytest
-from joblib import effective_n_jobs
+from joblib import effective_n_jobs, parallel_backend
 
+import fastbootstrap.core as core
 from fastbootstrap.constants import (
     BATCH_SIZE_LARGE,
     BATCH_SIZE_MASSIVE,
@@ -31,8 +38,10 @@ from fastbootstrap.constants import (
 from fastbootstrap.core import (
     _compute_optimal_batch_size,
     _resolve_n_workers,
+    bootstrap_resampling,
 )
 from fastbootstrap.exceptions import ValidationError
+from fastbootstrap.methods import bootstrap, one_sample_bootstrap, two_sample_bootstrap
 
 
 # ---------------------------------------------------------------------------
@@ -56,6 +65,23 @@ class TestResolveNWorkers:
     def test_zero_raises(self) -> None:
         with pytest.raises(ValidationError):
             _resolve_n_workers(0)
+
+    @pytest.mark.parametrize("bad", [True, 2.5, "4", [1]])
+    def test_non_integer_raises(self, bad: object) -> None:
+        """Non-integers must be a ValidationError, not a raw joblib TypeError."""
+        with pytest.raises(ValidationError, match="n_jobs"):
+            _resolve_n_workers(bad)  # type: ignore[arg-type]
+
+    def test_numpy_integer_accepted(self) -> None:
+        """NumPy integer scalars are legitimate n_jobs values."""
+        assert _resolve_n_workers(np.int64(3)) == 3
+
+    def test_none_defers_to_joblib(self) -> None:
+        """``None`` is joblib's "unset" sentinel: 1 by default, or the value of
+        an enclosing ``parallel_backend`` context. It must not be rejected."""
+        assert _resolve_n_workers(None) == effective_n_jobs(None) == 1
+        with parallel_backend("loky", n_jobs=2):
+            assert _resolve_n_workers(None) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -135,24 +161,31 @@ def test_bases_are_monotonic_and_match_edges() -> None:
 
 
 @pytest.mark.parametrize(
-    ("n_samples", "n_jobs", "expected"),
+    ("n_samples", "n_jobs", "memory_gb", "expected"),
     [
-        # 16 workers: cap = N // 64 binds at 10K (156), bases win above.
-        (10_000, 16, 156),
-        (100_000, 16, BATCH_SIZE_MEDIUM),
-        (500_000, 16, BATCH_SIZE_LARGE),
-        (1_000_000, 16, BATCH_SIZE_MASSIVE),
+        # 16 workers, ample RAM: cap = N // 64 binds at 10K (156), bases win above.
+        (10_000, 16, 1024.0, 156),
+        (100_000, 16, 1024.0, BATCH_SIZE_MEDIUM),
+        (500_000, 16, 1024.0, BATCH_SIZE_LARGE),
+        (1_000_000, 16, 1024.0, BATCH_SIZE_MASSIVE),
         # 4 workers: cap = N // 16 never binds at these scales.
-        (10_000, 4, BATCH_SIZE_SMALL),
-        (100_000, 4, BATCH_SIZE_MEDIUM),
+        (10_000, 4, 1024.0, BATCH_SIZE_SMALL),
+        (100_000, 4, 1024.0, BATCH_SIZE_MEDIUM),
+        # RAM tiers pinned as *literals* so a retune must consciously touch
+        # this test (the tier tests below only check the min() mechanism).
+        (1_000_000, 16, 6.0, 512),  # moderate RAM: 1000 -> BATCH_SIZE_MEDIUM
+        (1_000_000, 16, 1.0, 64),  # low RAM:      1000 -> LOW_MEM_BATCH_CAP
+        # Tiny N with a single worker is cap-bound since the 1.8.6 retune:
+        # base 256 > N // (1 * 4) = 250.
+        (1_000, 1, 1024.0, 250),
     ],
 )
 def test_reference_picks(
-    n_samples: int, n_jobs: int, expected: int, big_mem: float
+    n_samples: int, n_jobs: int, memory_gb: float, expected: int
 ) -> None:
     """Pin the picks documented in the README benchmark tables."""
     batch = _compute_optimal_batch_size(
-        n_samples, sample_size=2_000, n_jobs=n_jobs, available_memory_gb=big_mem
+        n_samples, sample_size=2_000, n_jobs=n_jobs, available_memory_gb=memory_gb
     )
     assert batch == expected
 
@@ -288,3 +321,98 @@ def test_floor_invariant(n_samples: int, n_jobs: int) -> None:
     )
     assert batch >= MIN_BATCH_FLOOR
     assert isinstance(batch, int)
+
+
+# ---------------------------------------------------------------------------
+# bootstrap_resampling: argument validation surfaces as ValidationError
+# ---------------------------------------------------------------------------
+
+
+def _constant_statistic(rng: np.random.Generator) -> float:
+    """Trivial sample function for validation tests."""
+    return 0.0
+
+
+@pytest.mark.parametrize("bad", [0, -5, "foo", 1.5, True, [16]])
+def test_invalid_batch_size_raises_validation_error(bad: object) -> None:
+    """Bad batch_size must not be re-wrapped as a NumericalError by joblib."""
+    with pytest.raises(ValidationError, match="batch_size"):
+        bootstrap_resampling(_constant_statistic, 10, n_jobs=1, batch_size=bad)
+
+
+@pytest.mark.parametrize("batch_size", [None, "auto", "smart", 7, np.int64(7)])
+def test_valid_batch_size_values_accepted(batch_size: object) -> None:
+    """None, 'auto', 'smart', positive ints and NumPy ints are all legal.
+
+    NumPy integers were accepted by joblib before validation was added, so
+    rejecting them would be a regression.
+    """
+    out = bootstrap_resampling(_constant_statistic, 10, n_jobs=1, batch_size=batch_size)
+    assert out.shape == (10,)
+
+
+@pytest.mark.parametrize("batch_size", [None, 7, "smart"])
+def test_n_jobs_zero_raises_validation_error_in_all_modes(
+    batch_size: object,
+) -> None:
+    """n_jobs=0 must fail identically whether or not smart mode is used."""
+    with pytest.raises(ValidationError, match="n_jobs"):
+        bootstrap_resampling(_constant_statistic, 10, n_jobs=0, batch_size=batch_size)
+
+
+@pytest.mark.parametrize("batch_size", [None, 7, "smart"])
+def test_n_jobs_none_is_accepted_end_to_end(batch_size: object) -> None:
+    """Regression: n_jobs=None worked before validation was added (joblib
+    treats it as "use the parallel_backend context, else 1") and must keep
+    working in every batch_size mode."""
+    out = bootstrap_resampling(
+        _constant_statistic, 10, n_jobs=None, batch_size=batch_size
+    )
+    assert out.shape == (10,)
+
+
+def test_n_jobs_none_accepted_by_public_api() -> None:
+    """The public entry points advertise ``Optional[int]`` for n_jobs; make sure
+    ``None`` is honoured there too, including inside a parallel_backend."""
+    rng = np.random.default_rng(0)
+    x, y = rng.normal(size=50), rng.normal(0.2, size=50)
+    with parallel_backend("loky", n_jobs=2):
+        one = one_sample_bootstrap(x, number_of_bootstrap_samples=20, n_jobs=None)
+        two = two_sample_bootstrap(x, y, number_of_bootstrap_samples=20, n_jobs=None)
+        uni = bootstrap(x, y, number_of_bootstrap_samples=20, n_jobs=None)
+    assert one["confidence_interval"].shape == (2,)
+    assert 0.0 <= two["p_value"] <= 1.0
+    assert 0.0 <= uni["p_value"] <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# ResourceWarning attribution
+# ---------------------------------------------------------------------------
+
+
+def test_resource_warning_points_at_caller(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The peak-memory warning must be attributed to user code, not core.py."""
+    # Pretend the host has ~1 MiB of free RAM so the check fires for n=100K.
+    monkeypatch.setattr(
+        core.psutil,
+        "virtual_memory",
+        lambda: types.SimpleNamespace(available=2**20),
+    )
+    sample = np.random.default_rng(0).normal(size=100_000)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        one_sample_bootstrap(
+            sample, number_of_bootstrap_samples=20, n_jobs=1, batch_size="smart"
+        )
+    resource = [w for w in caught if issubclass(w.category, ResourceWarning)]
+    assert len(resource) == 1
+    assert resource[0].filename == __file__
+
+
+def test_package_prefix_does_not_match_sibling_paths() -> None:
+    """skip_file_prefixes is a startswith match: the prefix must end with a
+    separator so that ``<pkg>_bench.py`` next to the package is not skipped."""
+    assert core._PACKAGE_DIR.endswith(os.sep)
+    pkg_root = core._PACKAGE_DIR.rstrip(os.sep)
+    assert core.__file__.startswith(core._PACKAGE_DIR)
+    assert not (pkg_root + "_bench.py").startswith(core._PACKAGE_DIR)

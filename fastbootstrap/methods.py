@@ -43,7 +43,7 @@ def one_sample_bootstrap(
     method: str = DEFAULT_BOOTSTRAP_METHOD,
     return_distribution: bool = False,
     seed: Optional[int] = DEFAULT_SEED,
-    n_jobs: int = DEFAULT_N_JOBS,
+    n_jobs: Optional[int] = DEFAULT_N_JOBS,
     batch_size: Optional[Union[int, str]] = None,
     plot: bool = False,
 ) -> Dict[str, Union[float, npt.NDArray[np.floating], None]]:
@@ -68,8 +68,10 @@ def one_sample_bootstrap(
         Whether to return the full bootstrap distribution. Default is False.
     seed : int, optional
         Random seed for reproducibility. Default is None.
-    n_jobs : int, optional
-        Number of parallel jobs. -1 uses all available cores. Default is -1.
+    n_jobs : int or None, optional
+        Number of parallel jobs (joblib convention). -1 uses all available
+        cores; ``None`` defers to joblib (an enclosing ``parallel_backend``
+        context, else 1). ``0`` is invalid. Default is -1.
     batch_size : int or str, optional
         Batch size for parallel processing:
         - None or 'auto': Dynamic batch sizing (default)
@@ -224,7 +226,7 @@ def two_sample_bootstrap(
     ] = difference_of_mean,
     return_distribution: bool = False,
     seed: Optional[int] = DEFAULT_SEED,
-    n_jobs: int = DEFAULT_N_JOBS,
+    n_jobs: Optional[int] = DEFAULT_N_JOBS,
     batch_size: Optional[Union[int, str]] = None,
     plot: bool = False,
 ) -> Dict[str, Union[float, npt.NDArray[np.floating], None]]:
@@ -248,8 +250,10 @@ def two_sample_bootstrap(
         Whether to return the full bootstrap distribution. Default is False.
     seed : int, optional
         Random seed for reproducibility. Default is None.
-    n_jobs : int, optional
-        Number of parallel jobs. -1 uses all available cores. Default is -1.
+    n_jobs : int or None, optional
+        Number of parallel jobs (joblib convention). -1 uses all available
+        cores; ``None`` defers to joblib (an enclosing ``parallel_backend``
+        context, else 1). ``0`` is invalid. Default is -1.
     batch_size : int or str, optional
         Batch size for parallel processing:
         - None or 'auto': Dynamic batch sizing (default)
@@ -691,7 +695,7 @@ def bootstrap(
     q: Union[float, Tuple[float, float]] = DEFAULT_QUANTILE,
     return_distribution: bool = False,
     seed: Optional[int] = DEFAULT_SEED,
-    n_jobs: int = DEFAULT_N_JOBS,
+    n_jobs: Optional[int] = DEFAULT_N_JOBS,
     batch_size: Optional[Union[int, str]] = None,
     plot: bool = False,
 ) -> Dict[str, Union[float, npt.NDArray[np.floating], None]]:
@@ -722,8 +726,10 @@ def bootstrap(
         Whether to return the full bootstrap distribution. Default is False.
     seed : int, optional
         Random seed for reproducibility. Default is None.
-    n_jobs : int, optional
-        Number of parallel jobs. -1 uses all available cores. Default is -1.
+    n_jobs : int or None, optional
+        Number of parallel jobs (joblib convention). -1 uses all available
+        cores; ``None`` defers to joblib (an enclosing ``parallel_backend``
+        context, else 1). ``0`` is invalid. Default is -1.
     batch_size : int or str, optional
         Batch size for parallel processing:
         - None or 'auto': Dynamic batch sizing (default)

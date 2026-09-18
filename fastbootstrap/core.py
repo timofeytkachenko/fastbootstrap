@@ -5,6 +5,8 @@ core statistical utilities for bootstrap analysis.
 """
 
 import math
+import operator
+import os
 import warnings
 from bisect import bisect_left
 from typing import Callable, Optional, Union
@@ -41,6 +43,52 @@ from .constants import (
     SAMPLE_COMPLEXITY_DIVISOR,
 )
 from .exceptions import InsufficientDataError, NumericalError, ValidationError
+
+# Used with ``warnings.warn(skip_file_prefixes=...)`` so warnings emitted by
+# the library are attributed to the caller's code, not to a frame inside the
+# package (Python >= 3.12, matching ``requires-python``). The trailing
+# separator is essential: skip_file_prefixes is a plain ``str.startswith``
+# match, so without it a sibling path such as ``.../fastbootstrap_bench.py``
+# would be skipped as well.
+_PACKAGE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "")
+
+# Accepted string values for ``batch_size``; anything else must be an int >= 1.
+_BATCH_SIZE_MODES: frozenset[str] = frozenset({"auto", "smart"})
+
+
+def _validate_batch_size(batch_size: Optional[Union[int, str]]) -> None:
+    """Validate the ``batch_size`` argument of :func:`bootstrap_resampling`.
+
+    Parameters
+    ----------
+    batch_size : int, str or None
+        ``None``, ``'auto'``, ``'smart'`` or a positive integer.
+
+    Raises
+    ------
+    ValidationError
+        If ``batch_size`` is any other value (including ``bool``, ``0``,
+        negative numbers, floats or unknown strings). NumPy integer scalars
+        are accepted, mirroring joblib's ``numbers.Integral`` check.
+    """
+    if batch_size is None or (
+        isinstance(batch_size, str) and batch_size in _BATCH_SIZE_MODES
+    ):
+        return
+    # operator.index accepts int and NumPy integer scalars, rejects floats/str.
+    if isinstance(batch_size, bool):
+        batch_int = None
+    else:
+        try:
+            batch_int = operator.index(batch_size)
+        except TypeError:
+            batch_int = None
+    if batch_int is None or batch_int < 1:
+        raise ValidationError(
+            "batch_size must be None, 'auto', 'smart' or a positive integer",
+            parameter="batch_size",
+            value=batch_size,
+        )
 
 
 def _validate_bootstrap_params(
@@ -659,7 +707,7 @@ def _execute_bootstrap_sample(
     return sample_function(rng)
 
 
-def _resolve_n_workers(n_jobs: int) -> int:
+def _resolve_n_workers(n_jobs: Optional[int]) -> int:
     """Resolve effective worker count exactly as joblib's ``Parallel`` would.
 
     Delegates to :func:`joblib.effective_n_jobs` so the estimate stays in
@@ -669,9 +717,11 @@ def _resolve_n_workers(n_jobs: int) -> int:
 
     Parameters
     ----------
-    n_jobs : int
+    n_jobs : int or None
         joblib-compatible number of jobs (``-1`` = all cores,
-        ``-k`` = all but ``k-1``, ``>= 1`` = explicit count).
+        ``-k`` = all but ``k-1``, ``>= 1`` = explicit count). ``None`` is
+        joblib's own "unset" sentinel: it defers to an enclosing
+        :func:`joblib.parallel_backend` context and otherwise means ``1``.
 
     Returns
     -------
@@ -681,21 +731,33 @@ def _resolve_n_workers(n_jobs: int) -> int:
     Raises
     ------
     ValidationError
-        If ``n_jobs`` is ``0``.
+        If ``n_jobs`` is ``0`` or not an integer (``bool``, ``float``,
+        ``str`` ...). NumPy integer scalars and ``None`` are accepted.
     """
-    if n_jobs == 0:
+    if n_jobs is None:
+        # Let joblib apply its own default / parallel_backend context.
+        return max(1, int(effective_n_jobs(None)))
+    # operator.index accepts int and NumPy integer scalars, rejects floats/str.
+    if isinstance(n_jobs, bool):
+        n_jobs_int = None
+    else:
+        try:
+            n_jobs_int = operator.index(n_jobs)
+        except TypeError:
+            n_jobs_int = None
+    if n_jobs_int is None or n_jobs_int == 0:
         raise ValidationError(
-            "n_jobs must be -k (k>=1) or a positive integer, got 0",
+            "n_jobs must be None, -k (k>=1) or a positive integer",
             parameter="n_jobs",
             value=n_jobs,
         )
-    return max(1, int(effective_n_jobs(n_jobs)))
+    return max(1, int(effective_n_jobs(n_jobs_int)))
 
 
 def _compute_optimal_batch_size(
     number_of_bootstrap_samples: int,
     sample_size: int,
-    n_jobs: int,
+    n_jobs: Optional[int],
     available_memory_gb: Optional[float] = None,
     dtype_bytes: int = DEFAULT_DTYPE_BYTES,
 ) -> int:
@@ -720,9 +782,10 @@ def _compute_optimal_batch_size(
         Total number of bootstrap iterations. Must be positive.
     sample_size : int
         Size of each sample being resampled. Must be ``>= MIN_SAMPLE_SIZE``.
-    n_jobs : int
+    n_jobs : int or None
         Number of parallel workers using joblib conventions
-        (``-1`` = all cores, ``-k`` = all but ``k-1``, ``>=1`` = explicit count).
+        (``-1`` = all cores, ``-k`` = all but ``k-1``, ``>=1`` = explicit count,
+        ``None`` = joblib default / enclosing ``parallel_backend`` context).
     available_memory_gb : float, optional
         Available system memory in GB. Auto-detected via ``psutil`` if
         ``None``. Must be finite and non-negative when supplied.
@@ -761,10 +824,14 @@ def _compute_optimal_batch_size(
     trades dispatch overhead against load balancing; the effect is a few
     percent of wall time, and the optimum grows with the worker count.
 
-    Memory-tier dampening:
+    Small-machine dampening (by available RAM as a proxy for host size):
 
     - ``< MEMORY_LOW_THRESHOLD`` GB -> cap at ``LOW_MEM_BATCH_CAP`` (64)
     - ``< MEMORY_MODERATE_THRESHOLD`` GB -> cap at ``BATCH_SIZE_MEDIUM`` (512)
+
+    These caps do *not* reduce peak memory (which is batch-invariant); they
+    only pick finer dispatch units on hosts that are typically also short on
+    cores. OOM risk is reported by the ``ResourceWarning`` below instead.
 
     Sample-complexity dampening:
 
@@ -836,7 +903,10 @@ def _compute_optimal_batch_size(
         bisect_left(BATCH_SIZE_EDGES, number_of_bootstrap_samples)
     ]
 
-    # Memory-tier dampening: throttle base on RAM-constrained systems.
+    # Small-machine dampening: RAM-starved hosts are usually CPU-starved too,
+    # so prefer smaller dispatch units there. NOTE: this does NOT lower peak
+    # memory (peak is batch-invariant, see docstring); it only trades dispatch
+    # overhead for finer load balancing.
     if available_memory_gb < MEMORY_LOW_THRESHOLD:
         base_batch = min(base_batch, LOW_MEM_BATCH_CAP)
     elif available_memory_gb < MEMORY_MODERATE_THRESHOLD:
@@ -858,6 +928,9 @@ def _compute_optimal_batch_size(
             "consider reducing n_jobs or sample_size.",
             ResourceWarning,
             stacklevel=2,
+            # Attribute the warning to the first frame outside this package
+            # (user code), not to bootstrap_resampling().
+            skip_file_prefixes=(_PACKAGE_DIR,),
         )
 
     # Load-balancing cap: ensure at least MIN_BATCHES_PER_WORKER chunks per worker.
@@ -875,7 +948,7 @@ def bootstrap_resampling(
     ],
     number_of_bootstrap_samples: int = DEFAULT_BOOTSTRAP_SAMPLES,
     seed: Optional[int] = DEFAULT_SEED,
-    n_jobs: int = DEFAULT_N_JOBS,
+    n_jobs: Optional[int] = DEFAULT_N_JOBS,
     batch_size: Optional[Union[int, str]] = None,
     sample_size_hint: Optional[int] = None,
 ) -> npt.NDArray[np.floating]:
@@ -893,8 +966,10 @@ def bootstrap_resampling(
         Number of bootstrap samples to generate. Default is 10000.
     seed : int, optional
         Seed for reproducibility. Default is 42.
-    n_jobs : int, optional
-        Number of parallel jobs. -1 uses all available cores. Default is -1.
+    n_jobs : int or None, optional
+        Number of parallel jobs. -1 uses all available cores. ``None`` defers
+        to joblib (an enclosing ``parallel_backend`` context, else 1).
+        Default is -1.
     batch_size : int or str, optional
         Number of samples per batch for parallel processing.
         - None or 'auto': Uses joblib's dynamic batch sizing (default).
@@ -913,7 +988,9 @@ def bootstrap_resampling(
     Raises
     ------
     ValidationError
-        If parameters are invalid.
+        If ``number_of_bootstrap_samples`` is not positive, ``batch_size`` is
+        not ``None``/``'auto'``/``'smart'``/positive integer, or ``n_jobs``
+        is ``0`` or neither ``None`` nor an integer.
     NumericalError
         If bootstrap computation fails.
 
@@ -956,7 +1033,12 @@ def bootstrap_resampling(
     Time complexity: O(n * f) where n is bootstrap samples, f is sample function cost.
     Space complexity: O(n) for results only, avoiding intermediate storage.
     """
+    # Validate the parallelism knobs up front so bad values surface as a
+    # ValidationError instead of being re-wrapped by the numeric except below
+    # (joblib raises ValueError for e.g. batch_size=0 or n_jobs=0).
     _validate_bootstrap_params(number_of_bootstrap_samples, 0.95)
+    _validate_batch_size(batch_size)
+    _resolve_n_workers(n_jobs)
 
     try:
         # Generate seed sequences lazily to avoid storing all RNGs in memory
