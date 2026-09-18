@@ -49,7 +49,7 @@ See Also
 - Performance: README.md benchmarks section
 """
 
-__version__ = "1.8.7"
+__version__ = "1.8.8"
 __author__ = "Timofey Tkachenko"
 __email__ = "timofey_tkachenko@pm.me"
 __license__ = "MIT"

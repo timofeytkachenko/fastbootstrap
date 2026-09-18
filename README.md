@@ -33,6 +33,12 @@
 pip install fastbootstrap
 ```
 
+To also pull Jupyter for running [the example notebook](https://nbviewer.org/github/timofeytkachenko/fastbootstrap/blob/main/bootstrap_experiment.ipynb) locally:
+
+```bash
+pip install "fastbootstrap[notebook]"
+```
+
 ### 🛠️ Development Setup
 
 ```bash
@@ -100,7 +106,7 @@ bca_result = fb.one_sample_bootstrap(
     plot=True
 )
 ```
-![One-Sample Bootstrap Example](img/onesample.png)
+![One-Sample Bootstrap Example](https://raw.githubusercontent.com/timofeytkachenko/fastbootstrap/main/img/onesample.png)
 
 
 
@@ -138,7 +144,7 @@ percent_result = fb.two_sample_bootstrap(
 print(f"Percentage change: {percent_result['statistic_value']:.1%}")
 ```
 
-![Two-Sample Bootstrap Example](img/twosample.png)
+![Two-Sample Bootstrap Example](https://raw.githubusercontent.com/timofeytkachenko/fastbootstrap/main/img/twosample.png)
 
 ### Spotify-Style Bootstrap
 
@@ -207,7 +213,7 @@ aa_result = fb.aa_test_simulation(
 print(f"A/A Test False Positive Rate: {aa_result['type_i_error_rate']:.3f}")
 ```
 
-![Power Analysis](img/power_analysis.png)
+![Power Analysis](https://raw.githubusercontent.com/timofeytkachenko/fastbootstrap/main/img/power_analysis.png)
 
 ### Quantile-Quantile Analysis
 
@@ -223,7 +229,7 @@ treatment = np.random.exponential(scale=1 / 0.00101, size=n)
 fb.quantile_bootstrap_plot(control, treatment, n_step=1000)
 ```
 
-![Quantile Plot](img/quantile_plot.png)
+![Quantile Plot](https://raw.githubusercontent.com/timofeytkachenko/fastbootstrap/main/img/quantile_plot.png)
 
 ### Large-Scale Bootstrap (>1M Samples)
 
@@ -318,7 +324,7 @@ result = fb.bootstrap(control, treatment, spotify_style=True, q=0.5)
 
 ## ⚡ Performance Benchmarks
 
-Benchmarks on Apple Silicon M4 Max (16 cores, 48 GB RAM), Python 3.12.11, NumPy 2.4.4, joblib 1.5.3, `fastbootstrap` 1.8.6. The batch-size heuristic is unchanged in 1.8.7, so these numbers still apply.
+Benchmarks on Apple Silicon M4 Max (16 cores, 48 GB RAM), Python 3.12.11, NumPy 2.4.4, joblib 1.5.3, `fastbootstrap` 1.8.6. The batch-size heuristic is unchanged in 1.8.7 and 1.8.8, so these numbers still apply.
 
 **Methodology.** Each cell reports `min` of **3 warm runs after a 1-iteration warmup**. The first joblib call pays a one-shot ~1 s `loky` worker-spawn penalty that is excluded by the warmup. Run-to-run noise is roughly ±3–5%, so differences below that are not significant. Reproduce by running the snippets at the end of this section.
 
@@ -537,6 +543,8 @@ Throughput ≈ 119 K samples/s for `'smart'`, the fastest configuration at this 
 > **Note (1.8.6):** The base table was retuned from `128 / 256 / 512 / 1000` to `256 / 512 / 1000 / 1000` following the *Batch-Size Sweep* above. Picks change for `N ≤ 500K` (e.g. 10K on 16 workers: `128 → 156`, 100K: `256 → 512`, 500K: `512 → 1000`); `N > 500K` is unchanged. The guard rails, constants' names and the public API are unchanged; `BATCH_SIZE_MEDIUM` (the moderate-RAM cap) is now 512.
 
 > **Note (1.8.7):** Argument validation only — no change to the batch-size heuristic or to any result. `batch_size` and `n_jobs` are now checked up front and rejected with a `ValidationError` instead of surfacing as a `NumericalError` from joblib; NumPy integer scalars are accepted for both, and `n_jobs=None` (defer to an enclosing `joblib.parallel_backend`) is explicitly supported and typed as `Optional[int]` on the public API. The `ResourceWarning` from smart mode is now attributed to the calling line in user code rather than to a frame inside the package.
+
+> **Note (1.8.8):** Packaging only — no library code changed. Earlier releases shipped a wheel that contained just `img/*.png` and no Python modules (a global `[tool.hatch.build] include` disabled hatchling's package detection), so `pip install fastbootstrap` produced an unimportable package; the wheel now ships `fastbootstrap/`. Metadata gained an MIT `LICENSE`, license expression and classifiers, and `jupyter` moved to the optional `notebook` extra, cutting a default install from 114 to 36 packages.
 
 **Reproduce locally:**
 

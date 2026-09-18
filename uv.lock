@@ -466,12 +466,11 @@ wheels = [
 
 [[package]]
 name = "fastbootstrap"
-version = "1.8.7"
+version = "1.8.8"
 source = { editable = "." }
 dependencies = [
     { name = "ipython" },
     { name = "joblib" },
-    { name = "jupyter" },
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "pandas" },
@@ -481,9 +480,15 @@ dependencies = [
     { name = "tqdm" },
 ]
 
+[package.optional-dependencies]
+notebook = [
+    { name = "jupyter" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "isort" },
+    { name = "jupyter" },
     { name = "nbqa" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -494,7 +499,7 @@ dev = [
 requires-dist = [
     { name = "ipython", specifier = ">=9.4.0" },
     { name = "joblib", specifier = ">=1.5.1" },
-    { name = "jupyter", specifier = ">=1.1.1" },
+    { name = "jupyter", marker = "extra == 'notebook'", specifier = ">=1.1.1" },
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "numpy", specifier = ">=2.3.1" },
     { name = "pandas", specifier = ">=2.3.1" },
@@ -503,10 +508,12 @@ requires-dist = [
     { name = "seaborn", specifier = ">=0.13.2" },
     { name = "tqdm", specifier = ">=4.67.1" },
 ]
+provides-extras = ["notebook"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "isort", specifier = ">=6.0.1" },
+    { name = "jupyter", specifier = ">=1.1.1" },
     { name = "nbqa", specifier = ">=1.9.1" },
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "pytest", specifier = ">=9.0.3" },

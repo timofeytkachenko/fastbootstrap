@@ -1,10 +1,23 @@
 [project]
 name = "fastbootstrap"
-version = "1.8.7"
+version = "1.8.8"
 description = "Fast Python implementation of statistical bootstrap"
 readme = "README.md"
 authors = [
     {name = "Timofey Tkachenko", email = "timofey_tkachenko@pm.me"}
+]
+license = "MIT"
+license-files = ["LICENSE"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Scientific/Engineering :: Mathematics",
 ]
 keywords = [
     "bootstrap",
@@ -31,9 +44,10 @@ keywords = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    # IPython is a hard runtime requirement: fastbootstrap.utils imports
+    # IPython.display at module level and is re-exported from __init__.
     "ipython>=9.4.0",
     "joblib>=1.5.1",
-    "jupyter>=1.1.1",
     "matplotlib>=3.10.3",
     "numpy>=2.3.1",
     "pandas>=2.3.1",
@@ -43,8 +57,17 @@ dependencies = [
     "tqdm>=4.67.1",
 ]
 
+[project.optional-dependencies]
+# Only needed to run bootstrap_experiment.ipynb; the library itself never
+# imports jupyter. Install with: pip install "fastbootstrap[notebook]"
+notebook = [
+    "jupyter>=1.1.1",
+]
+
 [dependency-groups]
 dev = [
+    # Kept for local work on bootstrap_experiment.ipynb; not a runtime dep.
+    "jupyter>=1.1.1",
     "isort>=6.0.1",
     "nbqa>=1.9.1",
     "pre-commit>=4.2.0",
